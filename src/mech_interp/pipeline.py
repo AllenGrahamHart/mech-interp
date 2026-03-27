@@ -471,6 +471,76 @@ def _intervention_metric_rows(
     return metric_rows
 
 
+def _gap_metrics(labels: np.ndarray, gaps: np.ndarray) -> dict[str, float]:
+    from sklearn.metrics import roc_auc_score
+
+    predictions = (gaps >= 0).astype(np.int64)
+    return {
+        "accuracy": float((predictions == labels).mean()),
+        "auroc": float(roc_auc_score(labels, gaps)),
+        "mean_gap": float(gaps.mean()),
+    }
+
+
+def _score_prompts_with_direction_removal(
+    prompts: list[str],
+    direction: np.ndarray,
+    model_bundle,
+    config: ExperimentConfig,
+    chosen_layer: int,
+):
+    use_completion_scoring = (
+        config.intervention.positive_completion is not None
+        and config.intervention.negative_completion is not None
+    )
+    if use_completion_scoring:
+        return batched_completion_logprob_gap(
+            prompts=prompts,
+            positive_completion=str(config.intervention.positive_completion),
+            negative_completion=str(config.intervention.negative_completion),
+            model_bundle=model_bundle,
+            max_length=config.activations.max_length,
+            batch_size=config.activations.batch_size,
+            intervention_factory=lambda token_indices: residual_direction_intervention(
+                model=model_bundle.model,
+                layer_index=chosen_layer,
+                direction=direction,
+                remove_component=True,
+                token_index=token_indices,
+            ),
+        )
+
+    tokenizer = model_bundle.tokenizer
+    rows = []
+    for prompt in prompts:
+        prompt_token_index = (
+            tokenizer(
+                prompt,
+                return_tensors="pt",
+                truncation=True,
+                max_length=config.activations.max_length,
+            )["input_ids"].shape[1]
+            - 1
+        )
+        with residual_direction_intervention(
+            model=model_bundle.model,
+            layer_index=chosen_layer,
+            direction=direction,
+            remove_component=True,
+            token_index=prompt_token_index,
+        ):
+            rows.append(
+                next_token_logit_gap(
+                    prompt=prompt,
+                    positive_token=config.intervention.positive_token,
+                    negative_token=config.intervention.negative_token,
+                    model_bundle=model_bundle,
+                    max_length=config.activations.max_length,
+                )
+            )
+    return rows
+
+
 def run_causal_benchmark(
     config_path: str | Path,
     layer: int | None = None,
@@ -1553,6 +1623,192 @@ def run_control_causal_benchmark(
         "control_direction_train_metrics_on_primary": control_on_primary_train_metrics,
         "intervention_results_file": "intervention_results.csv",
         "intervention_summary_file": "intervention_summary.csv",
+    }
+    write_json(run_dir / "summary.json", to_serializable(summary))
+    return to_serializable(summary)
+
+
+def run_random_direction_causal_benchmark(
+    config_path: str | Path,
+    layer: int | None = None,
+    num_random_directions: int = 32,
+    random_seed: int = 42,
+) -> dict[str, object]:
+    config = load_experiment_config(config_path)
+    chosen_layer = config.activations.layer if layer is None else layer
+    run_dir = make_run_dir(
+        config.output_root,
+        f"{config.experiment_name}_random_causal_layer_{chosen_layer:02d}",
+    )
+    write_json(
+        run_dir / "config.json",
+        {
+            "config": config.to_dict(),
+            "layer": int(chosen_layer),
+            "num_random_directions": int(num_random_directions),
+            "random_seed": int(random_seed),
+        },
+    )
+
+    train_examples = load_text_split(
+        config=config.dataset,
+        split=config.dataset.train_split,
+        limit_per_class=config.dataset.limit_train_per_class,
+    )
+    eval_examples = load_text_split(
+        config=config.dataset,
+        split=config.dataset.eval_split,
+        limit_per_class=config.dataset.limit_eval_per_class,
+    )
+    eval_examples = _limit_examples_per_class(
+        eval_examples,
+        max_examples_per_class=config.intervention.max_examples_per_class,
+        positive_label=config.direction.positive_label,
+    )
+
+    model_bundle = load_model_bundle(config.model)
+    train_activations, _ = collect_pooled_activations(
+        texts=[example.text for example in train_examples],
+        prompt_template=config.prompts.representation_template,
+        model_bundle=model_bundle,
+        activation_config=config.activations,
+    )
+    train_labels = np.asarray([example.label for example in train_examples], dtype=np.int64)
+    eval_labels = np.asarray([example.label for example in eval_examples], dtype=np.int64)
+
+    direction_fit = fit_direction(
+        activations=train_activations,
+        labels=train_labels,
+        config=config.direction,
+    )
+    np.save(run_dir / "morality_direction.npy", direction_fit.direction.astype(np.float32))
+
+    prompts = [
+        config.intervention.judgment_template.format(text=example.text)
+        for example in eval_examples
+    ]
+
+    use_completion_scoring = (
+        config.intervention.positive_completion is not None
+        and config.intervention.negative_completion is not None
+    )
+    if use_completion_scoring:
+        baseline_scores = batched_completion_logprob_gap(
+            prompts=prompts,
+            positive_completion=str(config.intervention.positive_completion),
+            negative_completion=str(config.intervention.negative_completion),
+            model_bundle=model_bundle,
+            max_length=config.activations.max_length,
+            batch_size=config.activations.batch_size,
+        )
+    else:
+        baseline_scores = [
+            next_token_logit_gap(
+                prompt=prompt,
+                positive_token=config.intervention.positive_token,
+                negative_token=config.intervention.negative_token,
+                model_bundle=model_bundle,
+                max_length=config.activations.max_length,
+            )
+            for prompt in prompts
+        ]
+    baseline_gaps = np.asarray([float(row["logprob_gap"]) for row in baseline_scores], dtype=np.float32)
+    baseline_metrics = _gap_metrics(eval_labels, baseline_gaps)
+
+    morality_removed_scores = _score_prompts_with_direction_removal(
+        prompts=prompts,
+        direction=direction_fit.direction,
+        model_bundle=model_bundle,
+        config=config,
+        chosen_layer=chosen_layer,
+    )
+    morality_removed_gaps = np.asarray(
+        [float(row["logprob_gap"]) for row in morality_removed_scores],
+        dtype=np.float32,
+    )
+    morality_removed_metrics = _gap_metrics(eval_labels, morality_removed_gaps)
+
+    rng = np.random.default_rng(random_seed)
+    random_rows = []
+    random_remove_aurocs = []
+    direction_dim = int(direction_fit.direction.shape[0])
+    for index in range(num_random_directions):
+        random_direction = rng.standard_normal(direction_dim).astype(np.float32)
+        random_direction /= np.linalg.norm(random_direction)
+        random_removed_scores = _score_prompts_with_direction_removal(
+            prompts=prompts,
+            direction=random_direction,
+            model_bundle=model_bundle,
+            config=config,
+            chosen_layer=chosen_layer,
+        )
+        random_removed_gaps = np.asarray(
+            [float(row["logprob_gap"]) for row in random_removed_scores],
+            dtype=np.float32,
+        )
+        random_metrics = _gap_metrics(eval_labels, random_removed_gaps)
+        random_drop = baseline_metrics["auroc"] - random_metrics["auroc"]
+        random_remove_aurocs.append(random_metrics["auroc"])
+        random_rows.append(
+            {
+                "direction_type": "random",
+                "direction_index": int(index),
+                "remove_accuracy": float(random_metrics["accuracy"]),
+                "remove_auroc": float(random_metrics["auroc"]),
+                "remove_mean_gap": float(random_metrics["mean_gap"]),
+                "auroc_drop_from_baseline": float(random_drop),
+            }
+        )
+
+    morality_drop = baseline_metrics["auroc"] - morality_removed_metrics["auroc"]
+    random_remove_aurocs_arr = np.asarray(random_remove_aurocs, dtype=np.float32)
+    random_drops = baseline_metrics["auroc"] - random_remove_aurocs_arr
+    empirical_p = float((np.sum(random_drops >= morality_drop) + 1) / (len(random_drops) + 1))
+
+    summary_rows = [
+        {
+            "direction_type": "baseline",
+            "direction_index": -1,
+            "remove_accuracy": float(baseline_metrics["accuracy"]),
+            "remove_auroc": float(baseline_metrics["auroc"]),
+            "remove_mean_gap": float(baseline_metrics["mean_gap"]),
+            "auroc_drop_from_baseline": 0.0,
+        },
+        {
+            "direction_type": "morality",
+            "direction_index": -1,
+            "remove_accuracy": float(morality_removed_metrics["accuracy"]),
+            "remove_auroc": float(morality_removed_metrics["auroc"]),
+            "remove_mean_gap": float(morality_removed_metrics["mean_gap"]),
+            "auroc_drop_from_baseline": float(morality_drop),
+        },
+    ]
+    summary_rows.extend(random_rows)
+    write_csv(run_dir / "random_direction_summary.csv", summary_rows)
+
+    summary = {
+        "run_dir": str(run_dir),
+        "layer": int(chosen_layer),
+        "train_examples": len(train_examples),
+        "eval_examples": len(eval_examples),
+        "num_random_directions": int(num_random_directions),
+        "baseline_metrics": baseline_metrics,
+        "morality_remove_metrics": morality_removed_metrics,
+        "morality_auroc_drop_from_baseline": float(morality_drop),
+        "random_remove_auroc": {
+            "mean": float(random_remove_aurocs_arr.mean()),
+            "std": float(random_remove_aurocs_arr.std(ddof=0)),
+            "min": float(random_remove_aurocs_arr.min()),
+            "max": float(random_remove_aurocs_arr.max()),
+        },
+        "random_auroc_drop_from_baseline": {
+            "mean": float(random_drops.mean()),
+            "std": float(random_drops.std(ddof=0)),
+            "min": float(random_drops.min()),
+            "max": float(random_drops.max()),
+        },
+        "empirical_p_value_random_drop_ge_morality_drop": empirical_p,
+        "summary_file": "random_direction_summary.csv",
     }
     write_json(run_dir / "summary.json", to_serializable(summary))
     return to_serializable(summary)

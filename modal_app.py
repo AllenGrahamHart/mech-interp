@@ -48,12 +48,15 @@ def run_remote(
     statements: str | None = None,
     layer: int | None = None,
     control_config: str | None = None,
+    num_random_directions: int = 32,
+    random_seed: int = 42,
 ) -> dict[str, object]:
     from mech_interp.pipeline import (
         run_control_causal_benchmark,
         run_causal_benchmark,
         run_layer_sweep,
         run_morality_direction,
+        run_random_direction_causal_benchmark,
         run_orthogonalized_causal_benchmark,
         run_orthogonalized_control,
     )
@@ -91,6 +94,13 @@ def run_remote(
             control_config_path=control_config,
             layer=layer,
         )
+    elif mode == "random-causal":
+        result = run_random_direction_causal_benchmark(
+            config_path=config,
+            layer=layer,
+            num_random_directions=num_random_directions,
+            random_seed=random_seed,
+        )
     else:
         raise ValueError(f"Unsupported mode '{mode}'.")
 
@@ -106,6 +116,8 @@ def main(
     statements: str | None = None,
     layer: int | None = None,
     control_config: str | None = None,
+    num_random_directions: int = 32,
+    random_seed: int = 42,
 ) -> None:
     local_config = Path(config)
     if local_config.parts and local_config.parts[0] == "configs":
@@ -137,5 +149,7 @@ def main(
         statements=remote_statements,
         layer=layer,
         control_config=remote_control_config,
+        num_random_directions=num_random_directions,
+        random_seed=random_seed,
     )
     print(result)

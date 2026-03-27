@@ -8,6 +8,7 @@ from mech_interp.pipeline import (
     run_causal_benchmark,
     run_layer_sweep,
     run_morality_direction,
+    run_random_direction_causal_benchmark,
     run_orthogonalized_causal_benchmark,
     run_orthogonalized_control,
 )
@@ -124,6 +125,34 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional layer override. Defaults to activations.layer from the primary config.",
     )
 
+    random_causal_parser = subparsers.add_parser(
+        "random-causal",
+        help="Run the causal benchmark with many random-direction removals as a null control.",
+    )
+    random_causal_parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to the primary TOML experiment config.",
+    )
+    random_causal_parser.add_argument(
+        "--layer",
+        type=int,
+        default=None,
+        help="Optional layer override. Defaults to activations.layer from the primary config.",
+    )
+    random_causal_parser.add_argument(
+        "--num-random-directions",
+        type=int,
+        default=32,
+        help="Number of random unit vectors to test.",
+    )
+    random_causal_parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=42,
+        help="Random seed for drawing null directions.",
+    )
+
     return parser
 
 
@@ -172,6 +201,16 @@ def main() -> None:
             config_path=args.config,
             control_config_path=args.control_config,
             layer=args.layer,
+        )
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return
+
+    if args.command == "random-causal":
+        result = run_random_direction_causal_benchmark(
+            config_path=args.config,
+            layer=args.layer,
+            num_random_directions=args.num_random_directions,
+            random_seed=args.random_seed,
         )
         print(json.dumps(result, indent=2, sort_keys=True))
         return
