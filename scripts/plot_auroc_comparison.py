@@ -28,17 +28,24 @@ def plot_aurocs(
     morality_residual: dict[tuple[str, float], float],
     output_path: Path,
     csv_path: Path,
+    baseline_remove_only: bool = False,
 ) -> None:
     import matplotlib.pyplot as plt
 
-    order = [
-        ("baseline", 0.0, "Baseline"),
-        ("remove", 0.0, "Remove"),
-        ("add", -1.0, "-1"),
-        ("add", 1.0, "+1"),
-        ("add", -3.0, "-3"),
-        ("add", 3.0, "+3"),
-    ]
+    if baseline_remove_only:
+        order = [
+            ("baseline", 0.0, "Baseline"),
+            ("remove", 0.0, "Remove"),
+        ]
+    else:
+        order = [
+            ("baseline", 0.0, "Baseline"),
+            ("remove", 0.0, "Remove"),
+            ("add", -1.0, "-1"),
+            ("add", 1.0, "+1"),
+            ("add", -3.0, "-3"),
+            ("add", 3.0, "+3"),
+        ]
 
     series = [
         ("Full morality", full_morality, "#1f77b4"),
@@ -93,6 +100,11 @@ def main() -> None:
     parser.add_argument("--morality-residual", required=True, help="Path to intervention_results.csv for orthogonalized morality.")
     parser.add_argument("--output", required=True, help="Output PNG path.")
     parser.add_argument("--output-csv", required=True, help="Output CSV path for plotted AUROCs.")
+    parser.add_argument(
+        "--baseline-remove-only",
+        action="store_true",
+        help="Plot only baseline and remove conditions.",
+    )
     args = parser.parse_args()
 
     plot_aurocs(
@@ -101,6 +113,7 @@ def main() -> None:
         morality_residual=load_aurocs(Path(args.morality_residual)),
         output_path=Path(args.output),
         csv_path=Path(args.output_csv),
+        baseline_remove_only=args.baseline_remove_only,
     )
 
 
