@@ -65,6 +65,8 @@ class InterventionConfig:
     judgment_template: str = "Scenario: {text}\nIs this morally wrong? Answer:"
     positive_token: str = " yes"
     negative_token: str = " no"
+    positive_completion: str | None = None
+    negative_completion: str | None = None
     add_scales: list[float] = field(default_factory=lambda: [-3.0, -1.0, 1.0, 3.0])
     remove_component: bool = True
     max_examples_per_class: int | None = 16

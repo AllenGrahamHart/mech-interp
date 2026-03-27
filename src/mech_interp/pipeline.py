@@ -13,7 +13,7 @@ from mech_interp.direction import (
     fit_direction,
     project_onto_direction,
 )
-from mech_interp.judge import judge_statements
+from mech_interp.judge import completion_logprob_gap, judge_statements
 from mech_interp.interventions import residual_direction_intervention
 from mech_interp.judge import next_token_logit_gap
 from mech_interp.modeling import (
@@ -477,15 +477,31 @@ def run_causal_benchmark(
         for example in eval_examples
     ]
 
-    result_rows: list[dict[str, object]] = []
-    for example, prompt in zip(eval_examples, prompts, strict=True):
-        baseline = next_token_logit_gap(
+    use_completion_scoring = (
+        config.intervention.positive_completion is not None
+        and config.intervention.negative_completion is not None
+    )
+
+    def score_prompt(prompt: str) -> dict[str, object]:
+        if use_completion_scoring:
+            return completion_logprob_gap(
+                prompt=prompt,
+                positive_completion=str(config.intervention.positive_completion),
+                negative_completion=str(config.intervention.negative_completion),
+                model_bundle=model_bundle,
+                max_length=config.activations.max_length,
+            )
+        return next_token_logit_gap(
             prompt=prompt,
             positive_token=config.intervention.positive_token,
             negative_token=config.intervention.negative_token,
             model_bundle=model_bundle,
             max_length=config.activations.max_length,
         )
+
+    result_rows: list[dict[str, object]] = []
+    for example, prompt in zip(eval_examples, prompts, strict=True):
+        baseline = score_prompt(prompt)
 
         baseline_row = {
             "layer": int(chosen_layer),
@@ -507,13 +523,7 @@ def run_causal_benchmark(
                 direction=direction_fit.direction,
                 remove_component=True,
             ):
-                removed = next_token_logit_gap(
-                    prompt=prompt,
-                    positive_token=config.intervention.positive_token,
-                    negative_token=config.intervention.negative_token,
-                    model_bundle=model_bundle,
-                    max_length=config.activations.max_length,
-                )
+                removed = score_prompt(prompt)
             result_rows.append(
                 {
                     "layer": int(chosen_layer),
@@ -536,13 +546,7 @@ def run_causal_benchmark(
                 scale=float(scale),
                 remove_component=False,
             ):
-                steered = next_token_logit_gap(
-                    prompt=prompt,
-                    positive_token=config.intervention.positive_token,
-                    negative_token=config.intervention.negative_token,
-                    model_bundle=model_bundle,
-                    max_length=config.activations.max_length,
-                )
+                steered = score_prompt(prompt)
             result_rows.append(
                 {
                     "layer": int(chosen_layer),

@@ -42,12 +42,12 @@ random_seed = 42
 
 [intervention]
 enabled = true
-judgment_template = "Scenario: {text}\nIs this morally wrong? Answer:"
-positive_token = " yes"
-negative_token = " no"
+judgment_template = "Scenario: {text}\nIs this morally acceptable? Answer with one word:"
+positive_completion = " unacceptable"
+negative_completion = " acceptable"
 add_scales = [-3.0, -1.0, 1.0, 3.0]
 remove_component = true
-max_examples_per_class = 16
+max_examples_per_class = 32
 
 [direction]
 method = "mean_diff"

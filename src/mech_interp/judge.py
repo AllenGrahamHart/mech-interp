@@ -94,6 +94,37 @@ def next_token_logit_gap(
     }
 
 
+def completion_logprob_gap(
+    prompt: str,
+    positive_completion: str,
+    negative_completion: str,
+    model_bundle,
+    max_length: int,
+) -> dict[str, object]:
+    positive_logprob = _sequence_logprob(
+        model_bundle=model_bundle,
+        prompt=prompt,
+        continuation=positive_completion,
+        max_length=max_length,
+    )
+    negative_logprob = _sequence_logprob(
+        model_bundle=model_bundle,
+        prompt=prompt,
+        continuation=negative_completion,
+        max_length=max_length,
+    )
+    return {
+        "positive_logprob": positive_logprob,
+        "negative_logprob": negative_logprob,
+        "logprob_gap": positive_logprob - negative_logprob,
+        "preferred_completion": (
+            positive_completion.strip()
+            if positive_logprob >= negative_logprob
+            else negative_completion.strip()
+        ),
+    }
+
+
 def judge_statements(
     statements: Sequence[str],
     prompt_template: str,
