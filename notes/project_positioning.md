@@ -87,6 +87,7 @@ Natural extensions, if the basic result is solid:
 - compare pretrained versus instruct-tuned models,
 - compare Qwen and Gemma,
 - compare multiple languages,
+- test whether the learned morality direction is language-dependent by translating matched scenarios across languages,
 - project contentious or controversial items onto the learned direction,
 - compare latent morality with explicit verbal judgments.
 
