@@ -48,10 +48,12 @@ def _sample_per_class(
 
 
 def load_ethics_split(config: DatasetConfig, split: str, limit_per_class: int | None) -> list[TextExample]:
-    from datasets import load_dataset
+    import pandas as pd
+    from huggingface_hub import hf_hub_download
 
-    dataset = load_dataset(config.dataset_id, config.subset, split=split)
-    rows = dataset.to_list()
+    filename = f"data/{config.subset}/{split}.csv"
+    csv_path = hf_hub_download(config.dataset_id, repo_type="dataset", filename=filename)
+    rows = pd.read_csv(csv_path).to_dict(orient="records")
     rows = _apply_common_filters(rows, config)
 
     examples = [
@@ -69,4 +71,3 @@ def load_ethics_split(config: DatasetConfig, split: str, limit_per_class: int | 
     ]
 
     return _sample_per_class(examples, limit_per_class=limit_per_class, seed=config.shuffle_seed)
-

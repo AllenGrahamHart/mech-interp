@@ -79,6 +79,14 @@ python3 -m mech_interp.cli sweep \
   --config configs/morality_direction_smoke.toml
 ```
 
+Run the causal benchmark at a chosen layer:
+
+```bash
+python3 -m mech_interp.cli causal \
+  --config configs/morality_direction_smoke.toml \
+  --layer 20
+```
+
 Outputs are written under `runs/<experiment>_<timestamp>/`, including:
 
 - `summary.json`
@@ -95,6 +103,12 @@ For the layer sweep, the main outputs are:
 - `direction_stability.csv`
 - `layer_<NN>_direction.npy`
 - per-layer train / eval projection CSVs
+
+For the causal benchmark, the main outputs are:
+
+- `intervention_results.csv`
+- `intervention_summary.csv`
+- `summary.json`
 
 ## Modal Setup
 
@@ -118,6 +132,12 @@ Run the raw layer sweep on Modal:
 modal run modal_app.py --mode sweep --config configs/morality_direction_smoke.toml
 ```
 
+Run the causal benchmark on Modal:
+
+```bash
+modal run modal_app.py --mode causal --config configs/morality_direction_smoke.toml --layer 20
+```
+
 This mounts two persistent Modal Volumes:
 
 - `/cache/hf` for Hugging Face downloads and tokenizer/model/SAE cache
@@ -131,6 +151,10 @@ This mounts two persistent Modal Volumes:
 - `configs/morality_direction_pt.toml`
   - Better if you want to focus on pretrained internal structure before instruction tuning.
   - Uses `google/gemma-3-1b-pt` and `gemma-scope-2-1b-pt-resid_post`.
+- `configs/morality_direction_smoke.toml`
+  - Tiny Gemma-targeted raw-activation smoke config for layer sweeps and intervention tests.
+- `configs/morality_direction_smoke_open.toml`
+  - Same smoke setup, but with `Qwen/Qwen2.5-0.5B-Instruct` so the full Modal pipeline can run without Gemma access.
 
 ## Current Limitations
 

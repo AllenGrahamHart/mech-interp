@@ -14,6 +14,8 @@ from mech_interp.direction import (
     project_onto_direction,
 )
 from mech_interp.judge import judge_statements
+from mech_interp.interventions import residual_direction_intervention
+from mech_interp.judge import next_token_logit_gap
 from mech_interp.modeling import (
     collect_layerwise_pooled_activations,
     collect_pooled_activations,
@@ -378,6 +380,196 @@ def run_layer_sweep(
         "best_layer_by_eval_auroc": best_layer,
         "layer_summary_file": "layer_summary.csv",
         "stability_file": "direction_stability.csv" if stability_rows else None,
+    }
+    write_json(run_dir / "summary.json", to_serializable(summary))
+    return to_serializable(summary)
+
+
+def _limit_examples_per_class(examples, max_examples_per_class: int | None, positive_label: int):
+    if max_examples_per_class is None:
+        return list(examples)
+
+    limited = []
+    positive_count = 0
+    negative_count = 0
+    for example in examples:
+        if example.label == positive_label and positive_count < max_examples_per_class:
+            limited.append(example)
+            positive_count += 1
+        elif example.label != positive_label and negative_count < max_examples_per_class:
+            limited.append(example)
+            negative_count += 1
+        if positive_count >= max_examples_per_class and negative_count >= max_examples_per_class:
+            break
+    return limited
+
+
+def _intervention_metric_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    grouped: dict[tuple[str, float], list[dict[str, object]]] = {}
+    for row in rows:
+        key = (str(row["mode"]), float(row["scale"]))
+        grouped.setdefault(key, []).append(row)
+
+    metric_rows = []
+    for (mode, scale), group_rows in sorted(grouped.items()):
+        labels = np.asarray([int(row["label"]) for row in group_rows], dtype=np.int64)
+        gaps = np.asarray([float(row["logprob_gap"]) for row in group_rows], dtype=np.float32)
+        predictions = (gaps >= 0).astype(np.int64)
+        metric_rows.append(
+            {
+                "mode": mode,
+                "scale": scale,
+                "count": int(len(group_rows)),
+                "accuracy": float((predictions == labels).mean()),
+                "mean_gap": float(gaps.mean()),
+                "mean_gap_immoral": float(gaps[labels == 1].mean()) if np.any(labels == 1) else float("nan"),
+                "mean_gap_acceptable": float(gaps[labels == 0].mean()) if np.any(labels == 0) else float("nan"),
+                "mean_gap_delta_from_baseline": float(
+                    np.mean([float(row["logprob_gap_delta"]) for row in group_rows])
+                ),
+            }
+        )
+    return metric_rows
+
+
+def run_causal_benchmark(
+    config_path: str | Path,
+    layer: int | None = None,
+) -> dict[str, object]:
+    config = load_experiment_config(config_path)
+    chosen_layer = config.activations.layer if layer is None else layer
+    run_dir = make_run_dir(config.output_root, f"{config.experiment_name}_causal_layer_{chosen_layer:02d}")
+    write_json(run_dir / "config.json", config.to_dict())
+
+    train_examples = load_ethics_split(
+        config=config.dataset,
+        split=config.dataset.train_split,
+        limit_per_class=config.dataset.limit_train_per_class,
+    )
+    eval_examples = load_ethics_split(
+        config=config.dataset,
+        split=config.dataset.eval_split,
+        limit_per_class=config.dataset.limit_eval_per_class,
+    )
+    eval_examples = _limit_examples_per_class(
+        eval_examples,
+        max_examples_per_class=config.intervention.max_examples_per_class,
+        positive_label=config.direction.positive_label,
+    )
+
+    model_bundle = load_model_bundle(config.model)
+    train_activations, _ = collect_pooled_activations(
+        texts=[example.text for example in train_examples],
+        prompt_template=config.prompts.representation_template,
+        model_bundle=model_bundle,
+        activation_config=config.activations,
+    )
+    train_labels = np.asarray([example.label for example in train_examples], dtype=np.int64)
+    direction_fit = fit_direction(
+        activations=train_activations,
+        labels=train_labels,
+        config=config.direction,
+    )
+    np.save(run_dir / "direction.npy", direction_fit.direction.astype(np.float32))
+
+    prompts = [
+        config.intervention.judgment_template.format(text=example.text)
+        for example in eval_examples
+    ]
+
+    result_rows: list[dict[str, object]] = []
+    for example, prompt in zip(eval_examples, prompts, strict=True):
+        baseline = next_token_logit_gap(
+            prompt=prompt,
+            positive_token=config.intervention.positive_token,
+            negative_token=config.intervention.negative_token,
+            model_bundle=model_bundle,
+            max_length=config.activations.max_length,
+        )
+
+        baseline_row = {
+            "layer": int(chosen_layer),
+            "mode": "baseline",
+            "scale": 0.0,
+            "label": int(example.label),
+            "text": example.text,
+            "prompt": prompt,
+            "logprob_gap": float(baseline["logprob_gap"]),
+            "preferred_completion": str(baseline["preferred_completion"]),
+            "logprob_gap_delta": 0.0,
+        }
+        result_rows.append(baseline_row)
+
+        if config.intervention.remove_component:
+            with residual_direction_intervention(
+                model=model_bundle.model,
+                layer_index=chosen_layer,
+                direction=direction_fit.direction,
+                remove_component=True,
+            ):
+                removed = next_token_logit_gap(
+                    prompt=prompt,
+                    positive_token=config.intervention.positive_token,
+                    negative_token=config.intervention.negative_token,
+                    model_bundle=model_bundle,
+                    max_length=config.activations.max_length,
+                )
+            result_rows.append(
+                {
+                    "layer": int(chosen_layer),
+                    "mode": "remove",
+                    "scale": 0.0,
+                    "label": int(example.label),
+                    "text": example.text,
+                    "prompt": prompt,
+                    "logprob_gap": float(removed["logprob_gap"]),
+                    "preferred_completion": str(removed["preferred_completion"]),
+                    "logprob_gap_delta": float(removed["logprob_gap"] - baseline["logprob_gap"]),
+                }
+            )
+
+        for scale in config.intervention.add_scales:
+            with residual_direction_intervention(
+                model=model_bundle.model,
+                layer_index=chosen_layer,
+                direction=direction_fit.direction,
+                scale=float(scale),
+                remove_component=False,
+            ):
+                steered = next_token_logit_gap(
+                    prompt=prompt,
+                    positive_token=config.intervention.positive_token,
+                    negative_token=config.intervention.negative_token,
+                    model_bundle=model_bundle,
+                    max_length=config.activations.max_length,
+                )
+            result_rows.append(
+                {
+                    "layer": int(chosen_layer),
+                    "mode": "add",
+                    "scale": float(scale),
+                    "label": int(example.label),
+                    "text": example.text,
+                    "prompt": prompt,
+                    "logprob_gap": float(steered["logprob_gap"]),
+                    "preferred_completion": str(steered["preferred_completion"]),
+                    "logprob_gap_delta": float(steered["logprob_gap"] - baseline["logprob_gap"]),
+                }
+            )
+
+    metric_rows = _intervention_metric_rows(result_rows)
+    write_csv(run_dir / "intervention_results.csv", result_rows)
+    write_csv(run_dir / "intervention_summary.csv", metric_rows)
+
+    summary = {
+        "run_dir": str(run_dir),
+        "layer": int(chosen_layer),
+        "train_examples": len(train_examples),
+        "eval_examples": len(eval_examples),
+        "direction_threshold": float(direction_fit.threshold),
+        "train_metrics": direction_fit.train_metrics,
+        "intervention_results_file": "intervention_results.csv",
+        "intervention_summary_file": "intervention_summary.csv",
     }
     write_json(run_dir / "summary.json", to_serializable(summary))
     return to_serializable(summary)

@@ -34,6 +34,8 @@ def load_model_bundle(config: ModelConfig) -> ModelBundle:
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     token = os.environ.get(config.hf_token_env)
+    if token is not None and not token.strip():
+        token = None
     tokenizer = AutoTokenizer.from_pretrained(config.model_id, token=token)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token

@@ -16,9 +16,6 @@ runs_volume = modal.Volume.from_name("mech-interp-runs", create_if_missing=True)
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install_from_pyproject("pyproject.toml")
-    .add_local_dir("src", remote_path=SOURCE_DIR)
-    .add_local_dir("configs", remote_path="/root/configs")
-    .add_local_dir("data", remote_path="/root/data")
     .env(
         {
             "PYTHONPATH": SOURCE_DIR,
@@ -27,6 +24,9 @@ image = (
             "TRANSFORMERS_CACHE": HF_CACHE_DIR,
         }
     )
+    .add_local_dir("src", remote_path=SOURCE_DIR)
+    .add_local_dir("configs", remote_path="/root/configs")
+    .add_local_dir("data", remote_path="/root/data")
 )
 
 app = modal.App(APP_NAME)
@@ -46,8 +46,9 @@ def run_remote(
     mode: str,
     config: str,
     statements: str | None = None,
+    layer: int | None = None,
 ) -> dict[str, object]:
-    from mech_interp.pipeline import run_layer_sweep, run_morality_direction
+    from mech_interp.pipeline import run_causal_benchmark, run_layer_sweep, run_morality_direction
 
     os.makedirs("/root/project", exist_ok=True)
     os.chdir("/root/project")
@@ -56,6 +57,8 @@ def run_remote(
         result = run_morality_direction(config_path=config, statements_path=statements)
     elif mode == "sweep":
         result = run_layer_sweep(config_path=config)
+    elif mode == "causal":
+        result = run_causal_benchmark(config_path=config, layer=layer)
     else:
         raise ValueError(f"Unsupported mode '{mode}'.")
 
@@ -69,6 +72,7 @@ def main(
     mode: str = "run",
     config: str = "configs/morality_direction_it.toml",
     statements: str | None = None,
+    layer: int | None = None,
 ) -> None:
     local_config = Path(config)
     if local_config.parts and local_config.parts[0] == "configs":
@@ -84,5 +88,5 @@ def main(
         else:
             remote_statements = str(Path("/root/data") / local_statements.name)
 
-    result = run_remote.remote(mode=mode, config=remote_config, statements=remote_statements)
+    result = run_remote.remote(mode=mode, config=remote_config, statements=remote_statements, layer=layer)
     print(result)

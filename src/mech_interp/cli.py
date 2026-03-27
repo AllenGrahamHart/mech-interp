@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 
-from mech_interp.pipeline import run_layer_sweep, run_morality_direction
+from mech_interp.pipeline import run_causal_benchmark, run_layer_sweep, run_morality_direction
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,6 +38,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to a TOML experiment config.",
     )
 
+    causal_parser = subparsers.add_parser(
+        "causal",
+        help="Run a prompt-only causal benchmark by ablating or steering a candidate morality direction.",
+    )
+    causal_parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to a TOML experiment config.",
+    )
+    causal_parser.add_argument(
+        "--layer",
+        type=int,
+        default=None,
+        help="Optional layer override. Defaults to activations.layer from the config.",
+    )
+
     return parser
 
 
@@ -55,6 +71,11 @@ def main() -> None:
 
     if args.command == "sweep":
         result = run_layer_sweep(config_path=args.config)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return
+
+    if args.command == "causal":
+        result = run_causal_benchmark(config_path=args.config, layer=args.layer)
         print(json.dumps(result, indent=2, sort_keys=True))
         return
 

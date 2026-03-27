@@ -60,6 +60,17 @@ class StabilityConfig:
 
 
 @dataclass
+class InterventionConfig:
+    enabled: bool = True
+    judgment_template: str = "Scenario: {text}\nIs this morally wrong? Answer:"
+    positive_token: str = " yes"
+    negative_token: str = " no"
+    add_scales: list[float] = field(default_factory=lambda: [-3.0, -1.0, 1.0, 3.0])
+    remove_component: bool = True
+    max_examples_per_class: int | None = 16
+
+
+@dataclass
 class DirectionConfig:
     method: str = "mean_diff"
     positive_label: int = 1
@@ -86,6 +97,7 @@ class ExperimentConfig:
     prompts: PromptConfig = field(default_factory=PromptConfig)
     activations: ActivationConfig = field(default_factory=ActivationConfig)
     stability: StabilityConfig = field(default_factory=StabilityConfig)
+    intervention: InterventionConfig = field(default_factory=InterventionConfig)
     direction: DirectionConfig = field(default_factory=DirectionConfig)
     sae: SAEConfig = field(default_factory=SAEConfig)
 
@@ -113,6 +125,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         prompts=_coerce_section(PromptConfig, raw.get("prompts")),
         activations=_coerce_section(ActivationConfig, raw.get("activations")),
         stability=_coerce_section(StabilityConfig, raw.get("stability")),
+        intervention=_coerce_section(InterventionConfig, raw.get("intervention")),
         direction=_coerce_section(DirectionConfig, raw.get("direction")),
         sae=_coerce_section(SAEConfig, raw.get("sae")),
     )

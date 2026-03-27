@@ -40,6 +40,15 @@ repeats = 4
 sample_sizes = [4, 8, 12, 16]
 random_seed = 42
 
+[intervention]
+enabled = true
+judgment_template = "Scenario: {text}\nIs this morally wrong? Answer:"
+positive_token = " yes"
+negative_token = " no"
+add_scales = [-3.0, -1.0, 1.0, 3.0]
+remove_component = true
+max_examples_per_class = 8
+
 [direction]
 method = "mean_diff"
 positive_label = 1
