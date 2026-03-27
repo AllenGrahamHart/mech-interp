@@ -22,6 +22,7 @@ def residual_direction_intervention(
     direction,
     scale: float = 0.0,
     remove_component: bool = False,
+    token_index: int = -1,
 ):
     import torch
 
@@ -34,13 +35,14 @@ def residual_direction_intervention(
         modified = hidden.clone()
         direction_device = direction.to(device=modified.device, dtype=modified.dtype)
         delta = direction_device.view(1, 1, -1)
+        target_index = token_index if token_index >= 0 else modified.shape[1] + token_index
 
         if remove_component:
-            coeff = (modified[:, -1, :] * direction_device).sum(dim=-1, keepdim=True)
-            modified[:, -1, :] = modified[:, -1, :] - coeff * direction_device
+            coeff = (modified[:, target_index, :] * direction_device).sum(dim=-1, keepdim=True)
+            modified[:, target_index, :] = modified[:, target_index, :] - coeff * direction_device
 
         if scale != 0.0:
-            modified[:, -1, :] = modified[:, -1, :] + scale * delta.squeeze(1)
+            modified[:, target_index, :] = modified[:, target_index, :] + scale * delta.squeeze(1)
 
         if isinstance(output, tuple):
             return (modified,) + tuple(output[1:])
@@ -51,4 +53,3 @@ def residual_direction_intervention(
         yield
     finally:
         handle.remove()
-

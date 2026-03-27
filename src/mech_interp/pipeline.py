@@ -458,6 +458,7 @@ def run_causal_benchmark(
     )
 
     model_bundle = load_model_bundle(config.model)
+    tokenizer = model_bundle.tokenizer
     train_activations, _ = collect_pooled_activations(
         texts=[example.text for example in train_examples],
         prompt_template=config.prompts.representation_template,
@@ -501,6 +502,15 @@ def run_causal_benchmark(
 
     result_rows: list[dict[str, object]] = []
     for example, prompt in zip(eval_examples, prompts, strict=True):
+        prompt_token_index = (
+            tokenizer(
+                prompt,
+                return_tensors="pt",
+                truncation=True,
+                max_length=config.activations.max_length,
+            )["input_ids"].shape[1]
+            - 1
+        )
         baseline = score_prompt(prompt)
 
         baseline_row = {
@@ -522,6 +532,7 @@ def run_causal_benchmark(
                 layer_index=chosen_layer,
                 direction=direction_fit.direction,
                 remove_component=True,
+                token_index=prompt_token_index,
             ):
                 removed = score_prompt(prompt)
             result_rows.append(
@@ -545,6 +556,7 @@ def run_causal_benchmark(
                 direction=direction_fit.direction,
                 scale=float(scale),
                 remove_component=False,
+                token_index=prompt_token_index,
             ):
                 steered = score_prompt(prompt)
             result_rows.append(
