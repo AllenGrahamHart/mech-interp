@@ -4,6 +4,7 @@ import argparse
 import json
 
 from mech_interp.pipeline import (
+    run_control_causal_benchmark,
     run_causal_benchmark,
     run_layer_sweep,
     run_morality_direction,
@@ -102,6 +103,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional layer override. Defaults to activations.layer from the primary config.",
     )
 
+    control_causal_parser = subparsers.add_parser(
+        "control-causal",
+        help="Run the causal benchmark on the primary prompts using a direction fit from a control dataset.",
+    )
+    control_causal_parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to the primary TOML experiment config.",
+    )
+    control_causal_parser.add_argument(
+        "--control-config",
+        required=True,
+        help="Path to the control TOML experiment config.",
+    )
+    control_causal_parser.add_argument(
+        "--layer",
+        type=int,
+        default=None,
+        help="Optional layer override. Defaults to activations.layer from the primary config.",
+    )
+
     return parser
 
 
@@ -138,6 +160,15 @@ def main() -> None:
 
     if args.command == "orthogonalized-causal":
         result = run_orthogonalized_causal_benchmark(
+            config_path=args.config,
+            control_config_path=args.control_config,
+            layer=args.layer,
+        )
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return
+
+    if args.command == "control-causal":
+        result = run_control_causal_benchmark(
             config_path=args.config,
             control_config_path=args.control_config,
             layer=args.layer,

@@ -50,6 +50,7 @@ def run_remote(
     control_config: str | None = None,
 ) -> dict[str, object]:
     from mech_interp.pipeline import (
+        run_control_causal_benchmark,
         run_causal_benchmark,
         run_layer_sweep,
         run_morality_direction,
@@ -78,6 +79,14 @@ def run_remote(
         if control_config is None:
             raise ValueError("control_config is required for orthogonalized-causal mode.")
         result = run_orthogonalized_causal_benchmark(
+            config_path=config,
+            control_config_path=control_config,
+            layer=layer,
+        )
+    elif mode == "control-causal":
+        if control_config is None:
+            raise ValueError("control_config is required for control-causal mode.")
+        result = run_control_causal_benchmark(
             config_path=config,
             control_config_path=control_config,
             layer=layer,
