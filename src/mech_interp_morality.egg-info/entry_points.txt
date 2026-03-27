@@ -1,2 +1,0 @@
-[console_scripts]
-mech-interp = mech_interp.cli:main
