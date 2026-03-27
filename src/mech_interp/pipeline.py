@@ -6,9 +6,19 @@ import numpy as np
 
 from mech_interp.config import ExperimentConfig, load_experiment_config
 from mech_interp.data import load_ethics_split
-from mech_interp.direction import DirectionFit, evaluate_direction, fit_direction, project_onto_direction
+from mech_interp.direction import (
+    DirectionFit,
+    cosine_similarity,
+    evaluate_direction,
+    fit_direction,
+    project_onto_direction,
+)
 from mech_interp.judge import judge_statements
-from mech_interp.modeling import collect_pooled_activations, load_model_bundle
+from mech_interp.modeling import (
+    collect_layerwise_pooled_activations,
+    collect_pooled_activations,
+    load_model_bundle,
+)
 from mech_interp.sae_analysis import analyze_sae_features
 from mech_interp.utils import make_run_dir, read_nonempty_lines, to_serializable, write_csv, write_json
 
@@ -210,5 +220,164 @@ def run_morality_direction(
             "file": "custom_statement_scores.csv",
         }
 
+    write_json(run_dir / "summary.json", to_serializable(summary))
+    return to_serializable(summary)
+
+
+def _default_sample_sizes(max_per_class: int) -> list[int]:
+    sizes = []
+    candidate = 4
+    while candidate <= max_per_class:
+        sizes.append(candidate)
+        candidate *= 2
+    if max_per_class >= 2 and max_per_class not in sizes:
+        sizes.append(max_per_class)
+    return sizes
+
+
+def _stability_rows(
+    activations: np.ndarray,
+    labels: np.ndarray,
+    direction_fit: DirectionFit,
+    config: ExperimentConfig,
+) -> list[dict[str, object]]:
+    positive_label = config.direction.positive_label
+    positive_indices = np.where(labels == positive_label)[0]
+    negative_indices = np.where(labels != positive_label)[0]
+    max_per_class = min(len(positive_indices), len(negative_indices))
+    sample_sizes = config.stability.sample_sizes or _default_sample_sizes(max_per_class)
+
+    rng = np.random.default_rng(config.stability.random_seed)
+    rows = []
+    for sample_size in sample_sizes:
+        if sample_size > max_per_class:
+            continue
+        for repeat in range(config.stability.repeats):
+            sampled_positive = rng.choice(positive_indices, size=sample_size, replace=False)
+            sampled_negative = rng.choice(negative_indices, size=sample_size, replace=False)
+            sampled_indices = np.concatenate([sampled_positive, sampled_negative])
+            sampled_fit = fit_direction(
+                activations=activations[sampled_indices],
+                labels=labels[sampled_indices],
+                config=config.direction,
+            )
+            rows.append(
+                {
+                    "sample_size_per_class": int(sample_size),
+                    "repeat": int(repeat),
+                    "cosine_to_full_direction": cosine_similarity(
+                        sampled_fit.direction,
+                        direction_fit.direction,
+                    ),
+                    "threshold": float(sampled_fit.threshold),
+                    "train_accuracy": float(sampled_fit.train_metrics["accuracy"]),
+                    "train_balanced_accuracy": float(sampled_fit.train_metrics["balanced_accuracy"]),
+                    "train_auroc": float(sampled_fit.train_metrics["auroc"]),
+                }
+            )
+    return rows
+
+
+def run_layer_sweep(
+    config_path: str | Path,
+) -> dict[str, object]:
+    config = load_experiment_config(config_path)
+    run_dir = make_run_dir(config.output_root, f"{config.experiment_name}_layers")
+    write_json(run_dir / "config.json", config.to_dict())
+
+    train_examples = load_ethics_split(
+        config=config.dataset,
+        split=config.dataset.train_split,
+        limit_per_class=config.dataset.limit_train_per_class,
+    )
+    eval_examples = load_ethics_split(
+        config=config.dataset,
+        split=config.dataset.eval_split,
+        limit_per_class=config.dataset.limit_eval_per_class,
+    )
+
+    model_bundle = load_model_bundle(config.model)
+    train_layerwise, train_prompts = collect_layerwise_pooled_activations(
+        texts=[example.text for example in train_examples],
+        prompt_template=config.prompts.representation_template,
+        model_bundle=model_bundle,
+        activation_config=config.activations,
+    )
+    eval_layerwise, eval_prompts = collect_layerwise_pooled_activations(
+        texts=[example.text for example in eval_examples],
+        prompt_template=config.prompts.representation_template,
+        model_bundle=model_bundle,
+        activation_config=config.activations,
+    )
+
+    train_labels = np.asarray([example.label for example in train_examples], dtype=np.int64)
+    eval_labels = np.asarray([example.label for example in eval_examples], dtype=np.int64)
+
+    layer_rows: list[dict[str, object]] = []
+    stability_rows: list[dict[str, object]] = []
+    best_layer = None
+    best_eval_auroc = float("-inf")
+
+    for layer in sorted(train_layerwise):
+        train_activations = train_layerwise[layer]
+        eval_activations = eval_layerwise[layer]
+        direction_fit = fit_direction(
+            activations=train_activations,
+            labels=train_labels,
+            config=config.direction,
+        )
+        train_scores = project_onto_direction(train_activations, direction_fit.direction)
+        eval_scores = project_onto_direction(eval_activations, direction_fit.direction)
+        eval_metrics = evaluate_direction(
+            activations=eval_activations,
+            labels=eval_labels,
+            direction=direction_fit.direction,
+            threshold=direction_fit.threshold,
+        )
+
+        np.save(run_dir / f"layer_{layer:02d}_direction.npy", direction_fit.direction.astype(np.float32))
+        write_csv(
+            run_dir / f"layer_{layer:02d}_train_projections.csv",
+            _projection_rows(train_examples, train_prompts, train_scores),
+        )
+        write_csv(
+            run_dir / f"layer_{layer:02d}_eval_projections.csv",
+            _projection_rows(eval_examples, eval_prompts, eval_scores),
+        )
+
+        layer_row = {
+            "layer": int(layer),
+            "threshold": float(direction_fit.threshold),
+            "train_accuracy": float(direction_fit.train_metrics["accuracy"]),
+            "train_balanced_accuracy": float(direction_fit.train_metrics["balanced_accuracy"]),
+            "train_auroc": float(direction_fit.train_metrics["auroc"]),
+            "eval_accuracy": float(eval_metrics["accuracy"]),
+            "eval_balanced_accuracy": float(eval_metrics["balanced_accuracy"]),
+            "eval_auroc": float(eval_metrics["auroc"]),
+        }
+        layer_rows.append(layer_row)
+
+        if config.stability.enabled:
+            for row in _stability_rows(train_activations, train_labels, direction_fit, config):
+                row["layer"] = int(layer)
+                stability_rows.append(row)
+
+        if eval_metrics["auroc"] > best_eval_auroc:
+            best_eval_auroc = eval_metrics["auroc"]
+            best_layer = int(layer)
+
+    write_csv(run_dir / "layer_summary.csv", layer_rows)
+    if stability_rows:
+        write_csv(run_dir / "direction_stability.csv", stability_rows)
+
+    summary = {
+        "run_dir": str(run_dir),
+        "train_examples": len(train_examples),
+        "eval_examples": len(eval_examples),
+        "num_layers": len(layer_rows),
+        "best_layer_by_eval_auroc": best_layer,
+        "layer_summary_file": "layer_summary.csv",
+        "stability_file": "direction_stability.csv" if stability_rows else None,
+    }
     write_json(run_dir / "summary.json", to_serializable(summary))
     return to_serializable(summary)

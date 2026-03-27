@@ -82,3 +82,10 @@ def evaluate_direction(
     scores = project_onto_direction(activations, direction)
     return _scores_to_metrics(scores=scores, labels=labels, threshold=threshold)
 
+
+def cosine_similarity(left: np.ndarray, right: np.ndarray) -> float:
+    left_norm = np.linalg.norm(left)
+    right_norm = np.linalg.norm(right)
+    if left_norm == 0 or right_norm == 0:
+        raise ValueError("Cannot compute cosine similarity with a zero vector.")
+    return float(np.dot(left, right) / (left_norm * right_norm))

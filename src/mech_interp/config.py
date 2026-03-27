@@ -52,6 +52,14 @@ class ActivationConfig:
 
 
 @dataclass
+class StabilityConfig:
+    enabled: bool = True
+    repeats: int = 8
+    sample_sizes: list[int] = field(default_factory=list)
+    random_seed: int = 42
+
+
+@dataclass
 class DirectionConfig:
     method: str = "mean_diff"
     positive_label: int = 1
@@ -77,6 +85,7 @@ class ExperimentConfig:
     dataset: DatasetConfig = field(default_factory=DatasetConfig)
     prompts: PromptConfig = field(default_factory=PromptConfig)
     activations: ActivationConfig = field(default_factory=ActivationConfig)
+    stability: StabilityConfig = field(default_factory=StabilityConfig)
     direction: DirectionConfig = field(default_factory=DirectionConfig)
     sae: SAEConfig = field(default_factory=SAEConfig)
 
@@ -103,7 +112,7 @@ def load_experiment_config(path: str | Path) -> ExperimentConfig:
         dataset=_coerce_section(DatasetConfig, raw.get("dataset")),
         prompts=_coerce_section(PromptConfig, raw.get("prompts")),
         activations=_coerce_section(ActivationConfig, raw.get("activations")),
+        stability=_coerce_section(StabilityConfig, raw.get("stability")),
         direction=_coerce_section(DirectionConfig, raw.get("direction")),
         sae=_coerce_section(SAEConfig, raw.get("sae")),
     )
-

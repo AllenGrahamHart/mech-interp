@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 
-from mech_interp.pipeline import run_morality_direction
+from mech_interp.pipeline import run_layer_sweep, run_morality_direction
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,6 +28,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional path to a plain-text file of custom statements.",
     )
 
+    sweep_parser = subparsers.add_parser(
+        "sweep",
+        help="Fit raw mean-difference morality directions for every layer and measure stability.",
+    )
+    sweep_parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to a TOML experiment config.",
+    )
+
     return parser
 
 
@@ -43,9 +53,13 @@ def main() -> None:
         print(json.dumps(result, indent=2, sort_keys=True))
         return
 
+    if args.command == "sweep":
+        result = run_layer_sweep(config_path=args.config)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return
+
     raise ValueError(f"Unhandled command '{args.command}'.")
 
 
 if __name__ == "__main__":
     main()
-

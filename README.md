@@ -72,6 +72,13 @@ python3 -m mech_interp.cli run \
   --statements data/statements/example_statements.txt
 ```
 
+Run the raw-activation layer sweep:
+
+```bash
+python3 -m mech_interp.cli sweep \
+  --config configs/morality_direction_smoke.toml
+```
+
 Outputs are written under `runs/<experiment>_<timestamp>/`, including:
 
 - `summary.json`
@@ -81,6 +88,13 @@ Outputs are written under `runs/<experiment>_<timestamp>/`, including:
 - `projection_histogram.png`
 - `sae_feature_summary.csv` if SAE analysis is enabled
 - `custom_statement_scores.csv` if a statements file is provided
+
+For the layer sweep, the main outputs are:
+
+- `layer_summary.csv`
+- `direction_stability.csv`
+- `layer_<NN>_direction.npy`
+- per-layer train / eval projection CSVs
 
 ## Modal Setup
 
@@ -96,6 +110,12 @@ Then launch the remote run:
 
 ```bash
 modal run modal_app.py --config configs/morality_direction_it.toml --statements data/statements/example_statements.txt
+```
+
+Run the raw layer sweep on Modal:
+
+```bash
+modal run modal_app.py --mode sweep --config configs/morality_direction_smoke.toml
 ```
 
 This mounts two persistent Modal Volumes:
@@ -128,4 +148,3 @@ Once the baseline is running, the natural extensions are:
 3. Fit separate directions for different moral foundations or controversy subsets.
 4. Add activation ablation / steering experiments using `interventions.py`.
 5. Compare latent morality scores with explicit Gemma answers on contentious items.
-

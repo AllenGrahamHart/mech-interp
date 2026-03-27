@@ -127,3 +127,60 @@ def collect_pooled_activations(
 
     activations = torch.cat(pooled_batches, dim=0).numpy()
     return activations, prompts
+
+
+def collect_layerwise_pooled_activations(
+    texts: Sequence[str],
+    prompt_template: str,
+    model_bundle: ModelBundle,
+    activation_config: ActivationConfig,
+    layers: Sequence[int] | None = None,
+) -> tuple[dict[int, np.ndarray], list[str]]:
+    import torch
+
+    prompts = format_prompts(texts, prompt_template)
+    tokenizer = model_bundle.tokenizer
+    model = model_bundle.model
+    device = next(model.parameters()).device
+
+    layer_batches: dict[int, list] = {}
+    resolved_layers: list[int] | None = list(layers) if layers is not None else None
+
+    for prompt_batch in batched(prompts, activation_config.batch_size):
+        encoded = tokenizer(
+            list(prompt_batch),
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=activation_config.max_length,
+        )
+        encoded = {key: value.to(device) for key, value in encoded.items()}
+
+        with torch.no_grad():
+            outputs = model(**encoded, output_hidden_states=True, use_cache=False)
+            hidden_states = outputs.hidden_states
+
+            if resolved_layers is None:
+                resolved_layers = list(range(len(hidden_states) - 1))
+
+            for layer in resolved_layers:
+                hidden_state = _select_hidden_state(
+                    hidden_states,
+                    layer=layer,
+                    site=activation_config.site,
+                )
+                pooled = _pool_hidden_states(
+                    hidden_state,
+                    attention_mask=encoded["attention_mask"],
+                    pooling=activation_config.pooling,
+                )
+                layer_batches.setdefault(layer, []).append(pooled.detach().float().cpu())
+
+    if resolved_layers is None:
+        raise RuntimeError("Could not resolve layer indices from model outputs.")
+
+    layerwise = {
+        layer: torch.cat(layer_batches[layer], dim=0).numpy()
+        for layer in resolved_layers
+    }
+    return layerwise, prompts

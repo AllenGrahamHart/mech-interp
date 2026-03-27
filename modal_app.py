@@ -42,13 +42,23 @@ app = modal.App(APP_NAME)
     },
     secrets=[modal.Secret.from_name("huggingface")],
 )
-def run_remote(config: str, statements: str | None = None) -> dict[str, object]:
-    from mech_interp.pipeline import run_morality_direction
+def run_remote(
+    mode: str,
+    config: str,
+    statements: str | None = None,
+) -> dict[str, object]:
+    from mech_interp.pipeline import run_layer_sweep, run_morality_direction
 
     os.makedirs("/root/project", exist_ok=True)
     os.chdir("/root/project")
 
-    result = run_morality_direction(config_path=config, statements_path=statements)
+    if mode == "run":
+        result = run_morality_direction(config_path=config, statements_path=statements)
+    elif mode == "sweep":
+        result = run_layer_sweep(config_path=config)
+    else:
+        raise ValueError(f"Unsupported mode '{mode}'.")
+
     hf_cache_volume.commit()
     runs_volume.commit()
     return result
@@ -56,6 +66,7 @@ def run_remote(config: str, statements: str | None = None) -> dict[str, object]:
 
 @app.local_entrypoint()
 def main(
+    mode: str = "run",
     config: str = "configs/morality_direction_it.toml",
     statements: str | None = None,
 ) -> None:
@@ -73,5 +84,5 @@ def main(
         else:
             remote_statements = str(Path("/root/data") / local_statements.name)
 
-    result = run_remote.remote(config=remote_config, statements=remote_statements)
+    result = run_remote.remote(mode=mode, config=remote_config, statements=remote_statements)
     print(result)
