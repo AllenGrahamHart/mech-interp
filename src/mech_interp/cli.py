@@ -1,0 +1,51 @@
+from __future__ import annotations
+
+import argparse
+import json
+
+from mech_interp.pipeline import run_morality_direction
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="mech-interp",
+        description="Baseline mechanistic interpretability experiments for Gemma 3 morality directions.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    run_parser = subparsers.add_parser(
+        "run",
+        help="Fit a morality direction from ETHICS and optionally score custom statements.",
+    )
+    run_parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to a TOML experiment config.",
+    )
+    run_parser.add_argument(
+        "--statements",
+        default=None,
+        help="Optional path to a plain-text file of custom statements.",
+    )
+
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if args.command == "run":
+        result = run_morality_direction(
+            config_path=args.config,
+            statements_path=args.statements,
+        )
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return
+
+    raise ValueError(f"Unhandled command '{args.command}'.")
+
+
+if __name__ == "__main__":
+    main()
+

@@ -1,0 +1,50 @@
+experiment_name = "morality_direction_it"
+output_root = "runs"
+
+[model]
+model_id = "google/gemma-3-1b-it"
+hf_token_env = "HF_TOKEN"
+dtype = "bfloat16"
+attn_implementation = "sdpa"
+device_map = "auto"
+trust_remote_code = false
+
+[dataset]
+dataset_id = "hendrycks/ethics"
+subset = "commonsense"
+train_split = "train"
+eval_split = "test"
+text_field = "input"
+label_field = "label"
+require_short = true
+limit_train_per_class = 256
+limit_eval_per_class = 128
+shuffle_seed = 42
+
+[prompts]
+representation_template = "Scenario: {text}\nMoral evaluation:"
+judgment_template = "Scenario: {text}\nIs this morally acceptable? Answer with one word:"
+positive_completion = " unacceptable"
+negative_completion = " acceptable"
+
+[activations]
+layer = 12
+site = "resid_post"
+pooling = "last_non_pad"
+batch_size = 16
+max_length = 128
+
+[direction]
+method = "mean_diff"
+positive_label = 1
+positive_name = "immoral"
+negative_name = "acceptable"
+normalize = true
+
+[sae]
+enabled = true
+release = "gemma-scope-2-1b-it-resid_post"
+sae_id = "layer_12_width_16k_l0_medium"
+batch_size = 64
+top_k = 30
+
