@@ -71,3 +71,33 @@ def load_ethics_split(config: DatasetConfig, split: str, limit_per_class: int | 
     ]
 
     return _sample_per_class(examples, limit_per_class=limit_per_class, seed=config.shuffle_seed)
+
+
+def load_text_split(config: DatasetConfig, split: str, limit_per_class: int | None) -> list[TextExample]:
+    if config.dataset_id == "hendrycks/ethics":
+        return load_ethics_split(config=config, split=split, limit_per_class=limit_per_class)
+
+    if config.dataset_id == "glue":
+        from datasets import load_dataset
+
+        dataset = load_dataset(config.dataset_id, config.subset, split=split)
+        rows = [dict(row) for row in dataset]
+        rows = _apply_common_filters(rows, config)
+        examples = [
+            TextExample(
+                text=str(row[config.text_field]).strip(),
+                label=int(row[config.label_field]),
+                split=split,
+                metadata={
+                    key: value
+                    for key, value in row.items()
+                    if key not in {config.text_field, config.label_field}
+                },
+            )
+            for row in rows
+        ]
+        return _sample_per_class(examples, limit_per_class=limit_per_class, seed=config.shuffle_seed)
+
+    raise NotImplementedError(
+        f"Dataset loader not implemented for dataset_id='{config.dataset_id}'."
+    )

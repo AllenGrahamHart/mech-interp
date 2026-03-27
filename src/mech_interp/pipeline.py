@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from mech_interp.config import ExperimentConfig, load_experiment_config
-from mech_interp.data import load_ethics_split
+from mech_interp.data import load_text_split
 from mech_interp.direction import (
     DirectionFit,
     cosine_similarity,
@@ -36,7 +36,15 @@ def _projection_rows(examples, prompts, scores):
         }
 
 
-def _plot_projection_histogram(train_scores, train_labels, eval_scores, eval_labels, output_path: Path) -> None:
+def _plot_projection_histogram(
+    train_scores,
+    train_labels,
+    eval_scores,
+    eval_labels,
+    output_path: Path,
+    positive_name: str,
+    negative_name: str,
+) -> None:
     import matplotlib.pyplot as plt
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
@@ -44,10 +52,10 @@ def _plot_projection_histogram(train_scores, train_labels, eval_scores, eval_lab
         (axes[0], train_scores, train_labels, "Train"),
         (axes[1], eval_scores, eval_labels, "Eval"),
     ]:
-        axis.hist(scores[labels == 0], bins=30, alpha=0.7, label="acceptable")
-        axis.hist(scores[labels == 1], bins=30, alpha=0.7, label="immoral")
+        axis.hist(scores[labels == 0], bins=30, alpha=0.7, label=negative_name)
+        axis.hist(scores[labels == 1], bins=30, alpha=0.7, label=positive_name)
         axis.set_title(title)
-        axis.set_xlabel("Projection onto morality direction")
+        axis.set_xlabel("Projection onto learned direction")
         axis.set_ylabel("Count")
         axis.legend()
     fig.tight_layout()
@@ -120,12 +128,12 @@ def run_morality_direction(
 
     write_json(run_dir / "config.json", config.to_dict())
 
-    train_examples = load_ethics_split(
+    train_examples = load_text_split(
         config=config.dataset,
         split=config.dataset.train_split,
         limit_per_class=config.dataset.limit_train_per_class,
     )
-    eval_examples = load_ethics_split(
+    eval_examples = load_text_split(
         config=config.dataset,
         split=config.dataset.eval_split,
         limit_per_class=config.dataset.limit_eval_per_class,
@@ -177,6 +185,8 @@ def run_morality_direction(
         eval_scores=eval_scores,
         eval_labels=eval_labels,
         output_path=run_dir / "projection_histogram.png",
+        positive_name=config.direction.positive_name,
+        negative_name=config.direction.negative_name,
     )
 
     summary: dict[str, object] = {
@@ -287,12 +297,12 @@ def run_layer_sweep(
     run_dir = make_run_dir(config.output_root, f"{config.experiment_name}_layers")
     write_json(run_dir / "config.json", config.to_dict())
 
-    train_examples = load_ethics_split(
+    train_examples = load_text_split(
         config=config.dataset,
         split=config.dataset.train_split,
         limit_per_class=config.dataset.limit_train_per_class,
     )
-    eval_examples = load_ethics_split(
+    eval_examples = load_text_split(
         config=config.dataset,
         split=config.dataset.eval_split,
         limit_per_class=config.dataset.limit_eval_per_class,
@@ -404,7 +414,11 @@ def _limit_examples_per_class(examples, max_examples_per_class: int | None, posi
     return limited
 
 
-def _intervention_metric_rows(rows: list[dict[str, object]]) -> list[dict[str, object]]:
+def _intervention_metric_rows(
+    rows: list[dict[str, object]],
+    positive_name: str,
+    negative_name: str,
+) -> list[dict[str, object]]:
     grouped: dict[tuple[str, float], list[dict[str, object]]] = {}
     for row in rows:
         key = (str(row["mode"]), float(row["scale"]))
@@ -422,8 +436,12 @@ def _intervention_metric_rows(rows: list[dict[str, object]]) -> list[dict[str, o
                 "count": int(len(group_rows)),
                 "accuracy": float((predictions == labels).mean()),
                 "mean_gap": float(gaps.mean()),
-                "mean_gap_immoral": float(gaps[labels == 1].mean()) if np.any(labels == 1) else float("nan"),
-                "mean_gap_acceptable": float(gaps[labels == 0].mean()) if np.any(labels == 0) else float("nan"),
+                f"mean_gap_{positive_name}": (
+                    float(gaps[labels == 1].mean()) if np.any(labels == 1) else float("nan")
+                ),
+                f"mean_gap_{negative_name}": (
+                    float(gaps[labels == 0].mean()) if np.any(labels == 0) else float("nan")
+                ),
                 "mean_gap_delta_from_baseline": float(
                     np.mean([float(row["logprob_gap_delta"]) for row in group_rows])
                 ),
@@ -441,12 +459,12 @@ def run_causal_benchmark(
     run_dir = make_run_dir(config.output_root, f"{config.experiment_name}_causal_layer_{chosen_layer:02d}")
     write_json(run_dir / "config.json", config.to_dict())
 
-    train_examples = load_ethics_split(
+    train_examples = load_text_split(
         config=config.dataset,
         split=config.dataset.train_split,
         limit_per_class=config.dataset.limit_train_per_class,
     )
-    eval_examples = load_ethics_split(
+    eval_examples = load_text_split(
         config=config.dataset,
         split=config.dataset.eval_split,
         limit_per_class=config.dataset.limit_eval_per_class,
@@ -665,7 +683,11 @@ def run_causal_benchmark(
                     }
                 )
 
-    metric_rows = _intervention_metric_rows(result_rows)
+    metric_rows = _intervention_metric_rows(
+        result_rows,
+        positive_name=config.direction.positive_name,
+        negative_name=config.direction.negative_name,
+    )
     write_csv(run_dir / "intervention_results.csv", result_rows)
     write_csv(run_dir / "intervention_summary.csv", metric_rows)
 
