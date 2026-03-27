@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
@@ -11,6 +12,7 @@ from mech_interp.direction import (
     cosine_similarity,
     evaluate_direction,
     fit_direction,
+    orthogonalize_direction,
     project_onto_direction,
 )
 from mech_interp.judge import batched_completion_logprob_gap, completion_logprob_gap, judge_statements
@@ -34,6 +36,25 @@ def _projection_rows(examples, prompts, scores):
             "prompt": prompt,
             "projection": float(score),
         }
+
+
+def _evaluate_fixed_direction(
+    activations: np.ndarray,
+    labels: np.ndarray,
+    direction: np.ndarray,
+    positive_label: int,
+) -> tuple[np.ndarray, float, dict[str, float]]:
+    scores = project_onto_direction(activations, direction)
+    positive_mask = labels == positive_label
+    negative_mask = ~positive_mask
+    threshold = 0.5 * (scores[positive_mask].mean() + scores[negative_mask].mean())
+    metrics = evaluate_direction(
+        activations=activations,
+        labels=labels,
+        direction=direction,
+        threshold=float(threshold),
+    )
+    return scores, float(threshold), metrics
 
 
 def _plot_projection_histogram(
@@ -701,5 +722,207 @@ def run_causal_benchmark(
         "intervention_results_file": "intervention_results.csv",
         "intervention_summary_file": "intervention_summary.csv",
     }
+    write_json(run_dir / "summary.json", to_serializable(summary))
+    return to_serializable(summary)
+
+
+def run_orthogonalized_control(
+    config_path: str | Path,
+    control_config_path: str | Path,
+    layer: int | None = None,
+) -> dict[str, object]:
+    config = load_experiment_config(config_path)
+    control_config = load_experiment_config(control_config_path)
+
+    if config.model.model_id != control_config.model.model_id:
+        raise ValueError(
+            "Primary and control configs must use the same base model to compare directions."
+        )
+
+    chosen_layer = config.activations.layer if layer is None else layer
+    run_dir = make_run_dir(
+        config.output_root,
+        f"{config.experiment_name}_orthogonalized_layer_{chosen_layer:02d}",
+    )
+    write_json(
+        run_dir / "config.json",
+        {
+            "primary": config.to_dict(),
+            "control": control_config.to_dict(),
+            "layer": int(chosen_layer),
+        },
+    )
+
+    primary_activation_config = deepcopy(config.activations)
+    primary_activation_config.layer = chosen_layer
+    control_activation_config = deepcopy(control_config.activations)
+    control_activation_config.layer = chosen_layer
+
+    model_bundle = load_model_bundle(config.model)
+
+    train_examples = load_text_split(
+        config=config.dataset,
+        split=config.dataset.train_split,
+        limit_per_class=config.dataset.limit_train_per_class,
+    )
+    eval_examples = load_text_split(
+        config=config.dataset,
+        split=config.dataset.eval_split,
+        limit_per_class=config.dataset.limit_eval_per_class,
+    )
+    control_train_examples = load_text_split(
+        config=control_config.dataset,
+        split=control_config.dataset.train_split,
+        limit_per_class=control_config.dataset.limit_train_per_class,
+    )
+
+    train_activations, train_prompts = collect_pooled_activations(
+        texts=[example.text for example in train_examples],
+        prompt_template=config.prompts.representation_template,
+        model_bundle=model_bundle,
+        activation_config=primary_activation_config,
+    )
+    eval_activations, eval_prompts = collect_pooled_activations(
+        texts=[example.text for example in eval_examples],
+        prompt_template=config.prompts.representation_template,
+        model_bundle=model_bundle,
+        activation_config=primary_activation_config,
+    )
+    control_train_activations, _ = collect_pooled_activations(
+        texts=[example.text for example in control_train_examples],
+        prompt_template=control_config.prompts.representation_template,
+        model_bundle=model_bundle,
+        activation_config=control_activation_config,
+    )
+
+    train_labels = np.asarray([example.label for example in train_examples], dtype=np.int64)
+    eval_labels = np.asarray([example.label for example in eval_examples], dtype=np.int64)
+    control_train_labels = np.asarray(
+        [example.label for example in control_train_examples],
+        dtype=np.int64,
+    )
+
+    morality_fit = fit_direction(
+        activations=train_activations,
+        labels=train_labels,
+        config=config.direction,
+    )
+    control_fit = fit_direction(
+        activations=control_train_activations,
+        labels=control_train_labels,
+        config=control_config.direction,
+    )
+
+    morality_train_scores = project_onto_direction(train_activations, morality_fit.direction)
+    morality_eval_scores = project_onto_direction(eval_activations, morality_fit.direction)
+    morality_eval_metrics = evaluate_direction(
+        activations=eval_activations,
+        labels=eval_labels,
+        direction=morality_fit.direction,
+        threshold=morality_fit.threshold,
+    )
+
+    control_on_morality_train_scores, control_on_morality_threshold, control_on_morality_train_metrics = (
+        _evaluate_fixed_direction(
+            activations=train_activations,
+            labels=train_labels,
+            direction=control_fit.direction,
+            positive_label=config.direction.positive_label,
+        )
+    )
+    control_on_morality_eval_metrics = evaluate_direction(
+        activations=eval_activations,
+        labels=eval_labels,
+        direction=control_fit.direction,
+        threshold=control_on_morality_threshold,
+    )
+    control_on_morality_eval_scores = project_onto_direction(eval_activations, control_fit.direction)
+
+    orthogonalized_direction = orthogonalize_direction(
+        morality_fit.direction,
+        control_fit.direction,
+    )
+    orthogonalized_train_scores, orthogonalized_threshold, orthogonalized_train_metrics = (
+        _evaluate_fixed_direction(
+            activations=train_activations,
+            labels=train_labels,
+            direction=orthogonalized_direction,
+            positive_label=config.direction.positive_label,
+        )
+    )
+    orthogonalized_eval_metrics = evaluate_direction(
+        activations=eval_activations,
+        labels=eval_labels,
+        direction=orthogonalized_direction,
+        threshold=orthogonalized_threshold,
+    )
+    orthogonalized_eval_scores = project_onto_direction(eval_activations, orthogonalized_direction)
+
+    direction_overlap = cosine_similarity(morality_fit.direction, control_fit.direction)
+    removed_component_norm = abs(direction_overlap)
+    residual_norm_before_renormalization = float(np.sqrt(max(0.0, 1.0 - direction_overlap**2)))
+
+    np.save(run_dir / "morality_direction.npy", morality_fit.direction.astype(np.float32))
+    np.save(run_dir / "control_direction.npy", control_fit.direction.astype(np.float32))
+    np.save(run_dir / "morality_direction_orthogonalized.npy", orthogonalized_direction.astype(np.float32))
+
+    projection_rows = []
+    for example, prompt, moral_score, control_score, orth_score in zip(
+        eval_examples,
+        eval_prompts,
+        morality_eval_scores,
+        control_on_morality_eval_scores,
+        orthogonalized_eval_scores,
+        strict=True,
+    ):
+        projection_rows.append(
+            {
+                "split": example.split,
+                "label": int(example.label),
+                "text": example.text,
+                "prompt": prompt,
+                "morality_score": float(moral_score),
+                "control_score": float(control_score),
+                "orthogonalized_score": float(orth_score),
+            }
+        )
+    write_csv(run_dir / "eval_projection_comparison.csv", projection_rows)
+
+    summary = {
+        "run_dir": str(run_dir),
+        "layer": int(chosen_layer),
+        "train_examples": len(train_examples),
+        "eval_examples": len(eval_examples),
+        "control_train_examples": len(control_train_examples),
+        "primary_direction": {
+            "name": config.direction.positive_name,
+            "threshold": float(morality_fit.threshold),
+            "train_metrics": morality_fit.train_metrics,
+            "eval_metrics": morality_eval_metrics,
+        },
+        "control_direction_on_primary_dataset": {
+            "name": control_config.direction.positive_name,
+            "threshold": float(control_on_morality_threshold),
+            "train_metrics": control_on_morality_train_metrics,
+            "eval_metrics": control_on_morality_eval_metrics,
+        },
+        "orthogonalized_primary_direction": {
+            "threshold": float(orthogonalized_threshold),
+            "train_metrics": orthogonalized_train_metrics,
+            "eval_metrics": orthogonalized_eval_metrics,
+        },
+        "direction_overlap": {
+            "cosine_similarity": float(direction_overlap),
+            "removed_component_norm": float(removed_component_norm),
+            "residual_norm_before_renormalization": residual_norm_before_renormalization,
+        },
+        "files": {
+            "eval_projection_comparison": "eval_projection_comparison.csv",
+            "morality_direction": "morality_direction.npy",
+            "control_direction": "control_direction.npy",
+            "orthogonalized_direction": "morality_direction_orthogonalized.npy",
+        },
+    }
+
     write_json(run_dir / "summary.json", to_serializable(summary))
     return to_serializable(summary)

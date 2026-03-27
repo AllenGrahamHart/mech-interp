@@ -89,3 +89,9 @@ def cosine_similarity(left: np.ndarray, right: np.ndarray) -> float:
     if left_norm == 0 or right_norm == 0:
         raise ValueError("Cannot compute cosine similarity with a zero vector.")
     return float(np.dot(left, right) / (left_norm * right_norm))
+
+
+def orthogonalize_direction(direction: np.ndarray, control_direction: np.ndarray) -> np.ndarray:
+    control_unit = normalize_vector(control_direction)
+    residual = direction - float(np.dot(direction, control_unit)) * control_unit
+    return normalize_vector(residual)

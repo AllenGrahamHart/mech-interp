@@ -3,7 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 
-from mech_interp.pipeline import run_causal_benchmark, run_layer_sweep, run_morality_direction
+from mech_interp.pipeline import (
+    run_causal_benchmark,
+    run_layer_sweep,
+    run_morality_direction,
+    run_orthogonalized_control,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -54,6 +59,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional layer override. Defaults to activations.layer from the config.",
     )
 
+    orthogonalize_parser = subparsers.add_parser(
+        "orthogonalize",
+        help="Fit a control direction and remove its linear component from the primary direction.",
+    )
+    orthogonalize_parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to the primary TOML experiment config.",
+    )
+    orthogonalize_parser.add_argument(
+        "--control-config",
+        required=True,
+        help="Path to the control TOML experiment config.",
+    )
+    orthogonalize_parser.add_argument(
+        "--layer",
+        type=int,
+        default=None,
+        help="Optional layer override. Defaults to activations.layer from the primary config.",
+    )
+
     return parser
 
 
@@ -76,6 +102,15 @@ def main() -> None:
 
     if args.command == "causal":
         result = run_causal_benchmark(config_path=args.config, layer=args.layer)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return
+
+    if args.command == "orthogonalize":
+        result = run_orthogonalized_control(
+            config_path=args.config,
+            control_config_path=args.control_config,
+            layer=args.layer,
+        )
         print(json.dumps(result, indent=2, sort_keys=True))
         return
 
