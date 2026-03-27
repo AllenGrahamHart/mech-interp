@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from typing import Sequence
 
 
 def _get_transformer_layers(model):
@@ -22,7 +23,7 @@ def residual_direction_intervention(
     direction,
     scale: float = 0.0,
     remove_component: bool = False,
-    token_index: int = -1,
+    token_index: int | Sequence[int] = -1,
 ):
     import torch
 
@@ -34,15 +35,31 @@ def residual_direction_intervention(
         hidden = output[0] if isinstance(output, tuple) else output
         modified = hidden.clone()
         direction_device = direction.to(device=modified.device, dtype=modified.dtype)
-        delta = direction_device.view(1, 1, -1)
-        target_index = token_index if token_index >= 0 else modified.shape[1] + token_index
+        if isinstance(token_index, int):
+            target_index = token_index if token_index >= 0 else modified.shape[1] + token_index
+            selected = modified[:, target_index, :]
+            batch_indices = None
+        else:
+            target_indices = torch.as_tensor(token_index, device=modified.device, dtype=torch.long)
+            target_indices = torch.where(target_indices >= 0, target_indices, modified.shape[1] + target_indices)
+            if target_indices.shape[0] != modified.shape[0]:
+                raise ValueError(
+                    "Per-example token indices must match the batch dimension of the hooked activation."
+                )
+            batch_indices = torch.arange(modified.shape[0], device=modified.device)
+            selected = modified[batch_indices, target_indices, :]
 
         if remove_component:
-            coeff = (modified[:, target_index, :] * direction_device).sum(dim=-1, keepdim=True)
-            modified[:, target_index, :] = modified[:, target_index, :] - coeff * direction_device
+            coeff = (selected * direction_device).sum(dim=-1, keepdim=True)
+            selected = selected - coeff * direction_device
 
         if scale != 0.0:
-            modified[:, target_index, :] = modified[:, target_index, :] + scale * delta.squeeze(1)
+            selected = selected + scale * direction_device
+
+        if batch_indices is None:
+            modified[:, target_index, :] = selected
+        else:
+            modified[batch_indices, target_indices, :] = selected
 
         if isinstance(output, tuple):
             return (modified,) + tuple(output[1:])

@@ -13,7 +13,7 @@ from mech_interp.direction import (
     fit_direction,
     project_onto_direction,
 )
-from mech_interp.judge import completion_logprob_gap, judge_statements
+from mech_interp.judge import batched_completion_logprob_gap, completion_logprob_gap, judge_statements
 from mech_interp.interventions import residual_direction_intervention
 from mech_interp.judge import next_token_logit_gap
 from mech_interp.modeling import (
@@ -501,77 +501,169 @@ def run_causal_benchmark(
         )
 
     result_rows: list[dict[str, object]] = []
-    for example, prompt in zip(eval_examples, prompts, strict=True):
-        prompt_token_index = (
-            tokenizer(
-                prompt,
-                return_tensors="pt",
-                truncation=True,
-                max_length=config.activations.max_length,
-            )["input_ids"].shape[1]
-            - 1
+    if use_completion_scoring:
+        baseline_scores = batched_completion_logprob_gap(
+            prompts=prompts,
+            positive_completion=str(config.intervention.positive_completion),
+            negative_completion=str(config.intervention.negative_completion),
+            model_bundle=model_bundle,
+            max_length=config.activations.max_length,
+            batch_size=config.activations.batch_size,
         )
-        baseline = score_prompt(prompt)
 
-        baseline_row = {
-            "layer": int(chosen_layer),
-            "mode": "baseline",
-            "scale": 0.0,
-            "label": int(example.label),
-            "text": example.text,
-            "prompt": prompt,
-            "logprob_gap": float(baseline["logprob_gap"]),
-            "preferred_completion": str(baseline["preferred_completion"]),
-            "logprob_gap_delta": 0.0,
-        }
-        result_rows.append(baseline_row)
-
-        if config.intervention.remove_component:
-            with residual_direction_intervention(
-                model=model_bundle.model,
-                layer_index=chosen_layer,
-                direction=direction_fit.direction,
-                remove_component=True,
-                token_index=prompt_token_index,
-            ):
-                removed = score_prompt(prompt)
+        for example, prompt, baseline in zip(eval_examples, prompts, baseline_scores, strict=True):
             result_rows.append(
                 {
                     "layer": int(chosen_layer),
-                    "mode": "remove",
+                    "mode": "baseline",
                     "scale": 0.0,
                     "label": int(example.label),
                     "text": example.text,
                     "prompt": prompt,
-                    "logprob_gap": float(removed["logprob_gap"]),
-                    "preferred_completion": str(removed["preferred_completion"]),
-                    "logprob_gap_delta": float(removed["logprob_gap"] - baseline["logprob_gap"]),
+                    "logprob_gap": float(baseline["logprob_gap"]),
+                    "preferred_completion": str(baseline["preferred_completion"]),
+                    "logprob_gap_delta": 0.0,
                 }
             )
 
-        for scale in config.intervention.add_scales:
-            with residual_direction_intervention(
-                model=model_bundle.model,
-                layer_index=chosen_layer,
-                direction=direction_fit.direction,
-                scale=float(scale),
-                remove_component=False,
-                token_index=prompt_token_index,
-            ):
-                steered = score_prompt(prompt)
-            result_rows.append(
-                {
-                    "layer": int(chosen_layer),
-                    "mode": "add",
-                    "scale": float(scale),
-                    "label": int(example.label),
-                    "text": example.text,
-                    "prompt": prompt,
-                    "logprob_gap": float(steered["logprob_gap"]),
-                    "preferred_completion": str(steered["preferred_completion"]),
-                    "logprob_gap_delta": float(steered["logprob_gap"] - baseline["logprob_gap"]),
-                }
+        if config.intervention.remove_component:
+            removed_scores = batched_completion_logprob_gap(
+                prompts=prompts,
+                positive_completion=str(config.intervention.positive_completion),
+                negative_completion=str(config.intervention.negative_completion),
+                model_bundle=model_bundle,
+                max_length=config.activations.max_length,
+                batch_size=config.activations.batch_size,
+                intervention_factory=lambda token_indices: residual_direction_intervention(
+                    model=model_bundle.model,
+                    layer_index=chosen_layer,
+                    direction=direction_fit.direction,
+                    remove_component=True,
+                    token_index=token_indices,
+                ),
             )
+            for example, prompt, baseline, removed in zip(
+                eval_examples, prompts, baseline_scores, removed_scores, strict=True
+            ):
+                result_rows.append(
+                    {
+                        "layer": int(chosen_layer),
+                        "mode": "remove",
+                        "scale": 0.0,
+                        "label": int(example.label),
+                        "text": example.text,
+                        "prompt": prompt,
+                        "logprob_gap": float(removed["logprob_gap"]),
+                        "preferred_completion": str(removed["preferred_completion"]),
+                        "logprob_gap_delta": float(removed["logprob_gap"] - baseline["logprob_gap"]),
+                    }
+                )
+
+        for scale in config.intervention.add_scales:
+            steered_scores = batched_completion_logprob_gap(
+                prompts=prompts,
+                positive_completion=str(config.intervention.positive_completion),
+                negative_completion=str(config.intervention.negative_completion),
+                model_bundle=model_bundle,
+                max_length=config.activations.max_length,
+                batch_size=config.activations.batch_size,
+                intervention_factory=lambda token_indices, scale=scale: residual_direction_intervention(
+                    model=model_bundle.model,
+                    layer_index=chosen_layer,
+                    direction=direction_fit.direction,
+                    scale=float(scale),
+                    remove_component=False,
+                    token_index=token_indices,
+                ),
+            )
+            for example, prompt, baseline, steered in zip(
+                eval_examples, prompts, baseline_scores, steered_scores, strict=True
+            ):
+                result_rows.append(
+                    {
+                        "layer": int(chosen_layer),
+                        "mode": "add",
+                        "scale": float(scale),
+                        "label": int(example.label),
+                        "text": example.text,
+                        "prompt": prompt,
+                        "logprob_gap": float(steered["logprob_gap"]),
+                        "preferred_completion": str(steered["preferred_completion"]),
+                        "logprob_gap_delta": float(steered["logprob_gap"] - baseline["logprob_gap"]),
+                    }
+                )
+    else:
+        for example, prompt in zip(eval_examples, prompts, strict=True):
+            prompt_token_index = (
+                tokenizer(
+                    prompt,
+                    return_tensors="pt",
+                    truncation=True,
+                    max_length=config.activations.max_length,
+                )["input_ids"].shape[1]
+                - 1
+            )
+            baseline = score_prompt(prompt)
+
+            baseline_row = {
+                "layer": int(chosen_layer),
+                "mode": "baseline",
+                "scale": 0.0,
+                "label": int(example.label),
+                "text": example.text,
+                "prompt": prompt,
+                "logprob_gap": float(baseline["logprob_gap"]),
+                "preferred_completion": str(baseline["preferred_completion"]),
+                "logprob_gap_delta": 0.0,
+            }
+            result_rows.append(baseline_row)
+
+            if config.intervention.remove_component:
+                with residual_direction_intervention(
+                    model=model_bundle.model,
+                    layer_index=chosen_layer,
+                    direction=direction_fit.direction,
+                    remove_component=True,
+                    token_index=prompt_token_index,
+                ):
+                    removed = score_prompt(prompt)
+                result_rows.append(
+                    {
+                        "layer": int(chosen_layer),
+                        "mode": "remove",
+                        "scale": 0.0,
+                        "label": int(example.label),
+                        "text": example.text,
+                        "prompt": prompt,
+                        "logprob_gap": float(removed["logprob_gap"]),
+                        "preferred_completion": str(removed["preferred_completion"]),
+                        "logprob_gap_delta": float(removed["logprob_gap"] - baseline["logprob_gap"]),
+                    }
+                )
+
+            for scale in config.intervention.add_scales:
+                with residual_direction_intervention(
+                    model=model_bundle.model,
+                    layer_index=chosen_layer,
+                    direction=direction_fit.direction,
+                    scale=float(scale),
+                    remove_component=False,
+                    token_index=prompt_token_index,
+                ):
+                    steered = score_prompt(prompt)
+                result_rows.append(
+                    {
+                        "layer": int(chosen_layer),
+                        "mode": "add",
+                        "scale": float(scale),
+                        "label": int(example.label),
+                        "text": example.text,
+                        "prompt": prompt,
+                        "logprob_gap": float(steered["logprob_gap"]),
+                        "preferred_completion": str(steered["preferred_completion"]),
+                        "logprob_gap_delta": float(steered["logprob_gap"] - baseline["logprob_gap"]),
+                    }
+                )
 
     metric_rows = _intervention_metric_rows(result_rows)
     write_csv(run_dir / "intervention_results.csv", result_rows)
