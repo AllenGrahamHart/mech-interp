@@ -66,8 +66,19 @@ def main() -> None:
     plot_df["class_name"] = plot_df["label"].map({0: "acceptable", 1: "immoral"}).fillna("unknown")
 
     import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
 
     colors = {"acceptable": "#1f77b4", "immoral": "#d62728"}
+    immoral_direction_handle = Line2D(
+        [0],
+        [0],
+        color="black",
+        linewidth=2.0,
+        marker=">",
+        markersize=7,
+        markevery=[1],
+        label="immoral direction",
+    )
     fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharex=True, sharey=True)
     for axis, split_name, split_df in [
         (axes[0], "Train", train_plot_df),
@@ -90,7 +101,10 @@ def main() -> None:
         axis.set_xlabel("PC1")
         axis.set_ylabel("PC2")
         _add_immoral_arrow(axis, split_df, "pc1", "pc2")
-        axis.legend(frameon=False)
+        handles, labels = axis.get_legend_handles_labels()
+        handles.append(immoral_direction_handle)
+        labels.append("immoral direction")
+        axis.legend(handles, labels, frameon=False)
 
     explained = pca.explained_variance_ratio_
     fig.suptitle(
