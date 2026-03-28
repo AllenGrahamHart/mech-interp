@@ -33,14 +33,6 @@ def _add_immoral_arrow(axis, split_df: pd.DataFrame, x_col: str, y_col: str) -> 
         zorder=5,
     )
     axis.scatter([tip_x], [tip_y], c="black", s=30, marker="x", linewidths=1.5, zorder=6)
-    axis.annotate(
-        "immoral centroid",
-        xy=(tip_x, tip_y),
-        xytext=(6, 6),
-        textcoords="offset points",
-        fontsize=9,
-        color="black",
-    )
 
 
 def main() -> None:
