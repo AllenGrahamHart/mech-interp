@@ -19,17 +19,24 @@ def _load_split(activations_path: Path, projections_path: Path) -> tuple[np.ndar
     return activations, frame
 
 
-def _add_immoral_arrow(axis, split_df: pd.DataFrame, x_col: str, y_col: str) -> None:
+def _centroid_tip(split_df: pd.DataFrame, x_col: str, y_col: str) -> tuple[float, float] | None:
     immoral_df = split_df[split_df["label"] == 1]
     if immoral_df.empty:
-        return
-    tip_x = float(immoral_df[x_col].mean())
-    tip_y = float(immoral_df[y_col].mean())
+        return None
+    return float(immoral_df[x_col].mean()), float(immoral_df[y_col].mean())
+
+
+def _add_arrow(axis, tip_x: float, tip_y: float, color: str = "black", linestyle: str = "-") -> None:
     axis.annotate(
         "",
         xy=(tip_x, tip_y),
         xytext=(0.0, 0.0),
-        arrowprops={"arrowstyle": "->", "linewidth": 2.0, "color": "black"},
+        arrowprops={
+            "arrowstyle": "->",
+            "linewidth": 2.0,
+            "color": color,
+            "linestyle": linestyle,
+        },
         zorder=5,
     )
 
@@ -45,6 +52,9 @@ def main() -> None:
     parser.add_argument("--direction", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--output-csv", required=True)
+    parser.add_argument("--comparison-direction")
+    parser.add_argument("--comparison-sign", type=float, default=1.0)
+    parser.add_argument("--comparison-label", default="negative sentiment direction")
     args = parser.parse_args()
 
     train_acts, train_df = _load_split(Path(args.train_activations), Path(args.train_projections))
@@ -86,6 +96,15 @@ def main() -> None:
         color="black",
         label="immorality direction",
     )
+    comparison_direction_handle = FancyArrowPatch(
+        (0.0, 0.0),
+        (1.0, 0.0),
+        arrowstyle="->",
+        linewidth=2.0,
+        linestyle="--",
+        color="#2ca02c",
+        label=args.comparison_label,
+    )
     arrow_handler = HandlerPatch(
         patch_func=lambda legend, orig_handle, xdescent, ydescent, width, height, fontsize: FancyArrowPatch(
             (xdescent, ydescent + 0.5 * height),
@@ -93,9 +112,19 @@ def main() -> None:
             arrowstyle="->",
             mutation_scale=max(fontsize * 1.1, 12.0),
             linewidth=2.0,
-            color="black",
+            color=orig_handle.get_edgecolor(),
+            linestyle=orig_handle.get_linestyle(),
         )
     )
+    comparison_xy = None
+    if args.comparison_direction:
+        comparison_direction = np.load(Path(args.comparison_direction)).astype(np.float32)
+        comparison_direction = args.comparison_sign * comparison_direction
+        comparison_direction = comparison_direction / np.linalg.norm(comparison_direction)
+        comparison_projection = float(comparison_direction @ direction)
+        comparison_residual = comparison_direction - comparison_projection * direction
+        comparison_residual_pc1 = float(residual_pca.transform(comparison_residual.reshape(1, -1))[0, 0])
+        comparison_xy = np.array([comparison_projection, comparison_residual_pc1], dtype=np.float32)
     fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharex=True, sharey=True)
     for axis, split_name, split_df in [
         (axes[0], "Train", train_plot_df),
@@ -117,10 +146,28 @@ def main() -> None:
         axis.set_title(split_name)
         axis.set_xlabel("Projection onto learned immorality direction")
         axis.set_ylabel("Residual PC1 (orthogonal to immorality)")
-        _add_immoral_arrow(axis, split_df, "morality_projection", "residual_pc1")
+        centroid_tip = _centroid_tip(split_df, "morality_projection", "residual_pc1")
+        if centroid_tip is not None:
+            tip_x, tip_y = centroid_tip
+            _add_arrow(axis, tip_x, tip_y, color="black", linestyle="-")
+            if comparison_xy is not None:
+                comp_norm = float(np.linalg.norm(comparison_xy))
+                if comp_norm > 0:
+                    target_norm = float(np.hypot(tip_x, tip_y))
+                    scaled = comparison_xy * (target_norm / comp_norm)
+                    _add_arrow(
+                        axis,
+                        float(scaled[0]),
+                        float(scaled[1]),
+                        color="#2ca02c",
+                        linestyle="--",
+                    )
         handles, labels = axis.get_legend_handles_labels()
         handles.append(immorality_direction_handle)
         labels.append("immorality direction")
+        if comparison_xy is not None:
+            handles.append(comparison_direction_handle)
+            labels.append(args.comparison_label)
         axis.legend(handles, labels, frameon=False, handler_map={FancyArrowPatch: arrow_handler})
 
     explained = residual_pca.explained_variance_ratio_[0]
