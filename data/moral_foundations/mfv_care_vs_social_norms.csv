@@ -1,0 +1,49 @@
+text,label,split,source_foundation,target_foundation,is_control
+You see a man walking down a dark hallway while still wearing his sunglasses.,0,test,social_norms,care,1
+You see a teenage girl wearing a long trench coat on a hot summer afternoon.,0,test,social_norms,care,1
+"You see a woman answering a phone call with the word ""goodbye"" instead of ""hello."".",0,test,social_norms,care,1
+You see someone driving around in a dirty car that has not been washed recently.,0,test,social_norms,care,1
+You see a boy making fun of his brother for getting dumped by his girlfriend.,1,test,care,care,0
+You see a girl telling her classmate that she looks like she has gained weight.,1,test,care,care,0
+You see a man loudly telling his wife that the dinner she cooked tastes awful.,1,test,care,care,0
+You see a teacher hitting a student's hand with a ruler for falling asleep in class.,1,test,care,care,0
+You see a teenage girl openly staring at a disfigured woman as she walks past.,1,test,care,care,0
+You see a wife hitting her husband on the side of his head for coming home late.,1,test,care,care,0
+You see a woman spanking her child with a spatula for getting bad grades in school.,1,test,care,care,0
+You see a woman throwing her cat across the room for scratching the furniture.,1,test,care,care,0
+You see a man eating a bowl of cereal in the morning with water instead of milk.,0,train,social_norms,care,1
+You see a man putting ketchup all over his chicken Caesar salad while at lunch.,0,train,social_norms,care,1
+You see a man staying inside his home with the shades drawn on a rare sunny day.,0,train,social_norms,care,1
+You see a man wearing clothes that are clearly several sizes too big for his body.,0,train,social_norms,care,1
+You see a woman continuing to wear a large sun hat inside her apartment complex.,0,train,social_norms,care,1
+You see a woman drinking her entire cup of coffee using a stirring spoon.,0,train,social_norms,care,1
+You see a woman eating dessert before her main entree arrives on the table.,0,train,social_norms,care,1
+You see a woman using a fork to eat a bowl of vanilla ice cream and marshmallows.,0,train,social_norms,care,1
+You see a woman watching a game on television in black-and-white instead of color.,0,train,social_norms,care,1
+You see someone at the school gym lifting free weights in nice business clothes.,0,train,social_norms,care,1
+You see someone reading the ending of a spy novel before reading the beginning.,0,train,social_norms,care,1
+You see someone using an old rotary phone and refusing to go buy a new one.,0,train,social_norms,care,1
+You see a boy placing a thumbtack sticking up on the chair of another student.,1,train,care,care,0
+You see a boy setting a series of traps to kill stray cats in his neighborhood.,1,train,care,care,0
+You see a boy telling a woman that she looks just like her overweight bulldog.,1,train,care,care,0
+You see a boy throwing rocks at cows that are grazing in the local pasture.,1,train,care,care,0
+You see a girl laughing at another student forgetting her lines at a school play.,1,train,care,care,0
+You see a girl laughing when she realizes her friend's dad is the janitor.,1,train,care,care,0
+You see a girl saying that another girl is too ugly to be a varsity cheerleader.,1,train,care,care,0
+You see a girl shooting geese repeatedly with a pellet gun out in the woods.,1,train,care,care,0
+You see a girl telling a boy that his older brother is much more attractive than him.,1,train,care,care,0
+You see a girl throwing her hot coffee on a woman who is dating her ex-boyfriend.,1,train,care,care,0
+You see a man lashing his pony with a whip for breaking loose from its pen.,1,train,care,care,0
+You see a man laughing at a disabled co-worker while at an office softball game.,1,train,care,care,0
+You see a man quickly canceling a blind date as soon as he sees the woman.,1,train,care,care,0
+You see a man snickering as he passes by a cancer patient with a bald head.,1,train,care,care,0
+You see a man telling a woman that her painting looks like it was done by children.,1,train,care,care,0
+You see a teenage boy chuckling at an amputee he passes by while on the subway.,1,train,care,care,0
+You see a woman clearly avoiding sitting next to an obese woman on the bus.,1,train,care,care,0
+You see a woman commenting out loud about how fat another woman looks in her jeans.,1,train,care,care,0
+You see a woman slapping another woman who she is arguing with in the parking lot.,1,train,care,care,0
+You see a woman snatching away her dog's food for making a mess in the living room.,1,train,care,care,0
+You see a woman swerving her car in order to intentionally run over a squirrel.,1,train,care,care,0
+You see a woman throwing a stapler at her colleague who is snoring during her talk.,1,train,care,care,0
+You see a zoo trainer jabbing a dolphin to get it to entertain his customers.,1,train,care,care,0
+You see someone leaving his dog outside in the rain after it dug in the trash.,1,train,care,care,0

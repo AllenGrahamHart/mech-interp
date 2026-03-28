@@ -21,8 +21,10 @@ class ModelConfig:
 class DatasetConfig:
     dataset_id: str = "hendrycks/ethics"
     subset: str = "commonsense"
+    local_path: str | None = None
     train_split: str = "train"
     eval_split: str = "test"
+    split_field: str = "split"
     text_field: str = "input"
     label_field: str = "label"
     require_short: bool = True

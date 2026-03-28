@@ -1,0 +1,61 @@
+experiment_name = "mfv_fairness_vs_social_norms"
+output_root = "runs"
+
+[model]
+model_id = "Qwen/Qwen2.5-0.5B-Instruct"
+hf_token_env = "HF_TOKEN"
+dtype = "bfloat16"
+attn_implementation = "sdpa"
+device_map = "auto"
+trust_remote_code = false
+
+[dataset]
+dataset_id = "local_csv"
+local_path = "data/moral_foundations/mfv_fairness_vs_social_norms.csv"
+train_split = "train"
+eval_split = "test"
+split_field = "split"
+text_field = "text"
+label_field = "label"
+require_short = false
+limit_train_per_class = 100
+limit_eval_per_class = 100
+shuffle_seed = 42
+
+[prompts]
+representation_template = "Scenario: {text}\nMoral evaluation:"
+judgment_template = "Scenario: {text}\nDoes this scenario violate the fairness/cheating foundation? Answer with one word:"
+positive_completion = " yes"
+negative_completion = " no"
+
+[activations]
+layer = 15
+site = "resid_post"
+pooling = "last_non_pad"
+batch_size = 8
+max_length = 128
+
+[stability]
+enabled = true
+repeats = 16
+sample_sizes = [4, 8, 12]
+random_seed = 42
+
+[intervention]
+enabled = true
+judgment_template = "Scenario: {text}\nDoes this scenario violate the fairness/cheating foundation? Answer with one word:"
+positive_completion = " yes"
+negative_completion = " no"
+add_scales = [-3.0, -1.0, 1.0, 3.0]
+remove_component = true
+max_examples_per_class = 4
+
+[direction]
+method = "mean_diff"
+positive_label = 1
+positive_name = "fairness_violation"
+negative_name = "social_norm"
+normalize = true
+
+[sae]
+enabled = false

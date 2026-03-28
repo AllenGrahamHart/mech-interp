@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import csv
 import random
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from mech_interp.config import DatasetConfig
@@ -73,9 +75,42 @@ def load_ethics_split(config: DatasetConfig, split: str, limit_per_class: int | 
     return _sample_per_class(examples, limit_per_class=limit_per_class, seed=config.shuffle_seed)
 
 
+def load_local_csv_split(
+    config: DatasetConfig,
+    split: str,
+    limit_per_class: int | None,
+) -> list[TextExample]:
+    if not config.local_path:
+        raise ValueError("DatasetConfig.local_path must be set for dataset_id='local_csv'.")
+
+    csv_path = Path(config.local_path)
+    with csv_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    rows = [row for row in rows if str(row.get(config.split_field, "")).strip() == split]
+    rows = _apply_common_filters(rows, config)
+    examples = [
+        TextExample(
+            text=str(row[config.text_field]).strip(),
+            label=int(row[config.label_field]),
+            split=split,
+            metadata={
+                key: value
+                for key, value in row.items()
+                if key not in {config.text_field, config.label_field, config.split_field}
+            },
+        )
+        for row in rows
+    ]
+    return _sample_per_class(examples, limit_per_class=limit_per_class, seed=config.shuffle_seed)
+
+
 def load_text_split(config: DatasetConfig, split: str, limit_per_class: int | None) -> list[TextExample]:
     if config.dataset_id == "hendrycks/ethics":
         return load_ethics_split(config=config, split=split, limit_per_class=limit_per_class)
+
+    if config.dataset_id == "local_csv":
+        return load_local_csv_split(config=config, split=split, limit_per_class=limit_per_class)
 
     if config.dataset_id == "glue":
         from datasets import load_dataset

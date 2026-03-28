@@ -1,0 +1,34 @@
+text,label,split,source_foundation,target_foundation,is_control
+"You see a woman answering a phone call with the word ""goodbye"" instead of ""hello."".",0,test,social_norms,authority,1
+You see a woman eating dessert before her main entree arrives on the table.,0,test,social_norms,authority,1
+You see a woman watching a game on television in black-and-white instead of color.,0,test,social_norms,authority,1
+You see someone reading the ending of a spy novel before reading the beginning.,0,test,social_norms,authority,1
+You see a group of women having a long and loud conversation during a church sermon.,1,test,authority,authority,0
+You see a staff member talking loudly and interrupting the mayor's speech to the public.,1,test,authority,authority,0
+You see a teaching assistant talking back to the teacher in front of the classrom.,1,test,authority,authority,0
+You see an employee trying to undermine all of her boss' ideas in front of others.,1,test,authority,authority,0
+You see a man eating a bowl of cereal in the morning with water instead of milk.,0,train,social_norms,authority,1
+You see a man putting ketchup all over his chicken Caesar salad while at lunch.,0,train,social_norms,authority,1
+You see a man staying inside his home with the shades drawn on a rare sunny day.,0,train,social_norms,authority,1
+You see a man walking down a dark hallway while still wearing his sunglasses.,0,train,social_norms,authority,1
+You see a man wearing clothes that are clearly several sizes too big for his body.,0,train,social_norms,authority,1
+You see a teenage girl wearing a long trench coat on a hot summer afternoon.,0,train,social_norms,authority,1
+You see a woman continuing to wear a large sun hat inside her apartment complex.,0,train,social_norms,authority,1
+You see a woman drinking her entire cup of coffee using a stirring spoon.,0,train,social_norms,authority,1
+You see a woman using a fork to eat a bowl of vanilla ice cream and marshmallows.,0,train,social_norms,authority,1
+You see someone at the school gym lifting free weights in nice business clothes.,0,train,social_norms,authority,1
+You see someone driving around in a dirty car that has not been washed recently.,0,train,social_norms,authority,1
+You see someone using an old rotary phone and refusing to go buy a new one.,0,train,social_norms,authority,1
+You see a boy spray-painting anarchy symbols on the side of the police station.,1,train,authority,authority,0
+You see a boy turning up the TV as his father talks about his military service.,1,train,authority,authority,0
+You see a girl ignoring her father's orders by taking the car after her curfew.,1,train,authority,authority,0
+You see a girl repeatedly interrupting her teacher as he explains a new concept.,1,train,authority,authority,0
+You see a man secretly watching sports on his cell phone during a pastor's sermon.,1,train,authority,authority,0
+You see a man turn his back and walk away while his boss questions his work.,1,train,authority,authority,0
+You see a player publicly yelling at his soccer coach during a playoff game.,1,train,authority,authority,0
+You see a star player ignoring her coach's order to come to the bench during a game.,1,train,authority,authority,0
+You see a student stating that her professor is a fool during an afternoon class.,1,train,authority,authority,0
+You see a teenage girl coming home late and ignoring her parents' strict curfew.,1,train,authority,authority,0
+You see a woman refusing to stand when the judge walks into the courtroom.,1,train,authority,authority,0
+You see a woman spray painting graffiti across the steps of the local courthouse.,1,train,authority,authority,0
+You see an intern disobeying an order to dress professionally and comb his hair.,1,train,authority,authority,0

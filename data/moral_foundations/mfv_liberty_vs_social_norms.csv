@@ -1,0 +1,34 @@
+text,label,split,source_foundation,target_foundation,is_control
+You see a man eating a bowl of cereal in the morning with water instead of milk.,0,test,social_norms,liberty,1
+You see a man putting ketchup all over his chicken Caesar salad while at lunch.,0,test,social_norms,liberty,1
+You see a woman continuing to wear a large sun hat inside her apartment complex.,0,test,social_norms,liberty,1
+You see a woman eating dessert before her main entree arrives on the table.,0,test,social_norms,liberty,1
+You see a manager coercing her employees into eating at her brother's diner.,1,test,liberty,liberty,0
+You see a mother telling her son that she is going to choose all of his friends.,1,test,liberty,liberty,0
+You see a public leader on TV trying to ban the wearing of hooded sweatshirts.,1,test,liberty,liberty,0
+You see a woman pressuring her daughter to become a famous evening news anchor.,1,test,liberty,liberty,0
+You see a man staying inside his home with the shades drawn on a rare sunny day.,0,train,social_norms,liberty,1
+You see a man walking down a dark hallway while still wearing his sunglasses.,0,train,social_norms,liberty,1
+You see a man wearing clothes that are clearly several sizes too big for his body.,0,train,social_norms,liberty,1
+You see a teenage girl wearing a long trench coat on a hot summer afternoon.,0,train,social_norms,liberty,1
+"You see a woman answering a phone call with the word ""goodbye"" instead of ""hello."".",0,train,social_norms,liberty,1
+You see a woman drinking her entire cup of coffee using a stirring spoon.,0,train,social_norms,liberty,1
+You see a woman using a fork to eat a bowl of vanilla ice cream and marshmallows.,0,train,social_norms,liberty,1
+You see a woman watching a game on television in black-and-white instead of color.,0,train,social_norms,liberty,1
+You see someone at the school gym lifting free weights in nice business clothes.,0,train,social_norms,liberty,1
+You see someone driving around in a dirty car that has not been washed recently.,0,train,social_norms,liberty,1
+You see someone reading the ending of a spy novel before reading the beginning.,0,train,social_norms,liberty,1
+You see someone using an old rotary phone and refusing to go buy a new one.,0,train,social_norms,liberty,1
+You see a boss ordering an employee to revoke his citizenship in his home country.,1,train,liberty,liberty,0
+You see a boss pressuring employees to buy goods from her family's general store.,1,train,liberty,liberty,0
+You see a father requiring his son to become a commercial airline pilot like him.,1,train,liberty,liberty,0
+You see a father requiring his son to take up the family restaurant business.,1,train,liberty,liberty,0
+You see a man blocking his wife from leaving home or interacting with others.,1,train,liberty,liberty,0
+You see a man forbidding his wife to wear clothing that he has not first approved.,1,train,liberty,liberty,0
+You see a man telling his fiance that she has to switch to his political party.,1,train,liberty,liberty,0
+You see a man telling his girlfriend that she must convert to his religion.,1,train,liberty,liberty,0
+You see a mayor trying to ban people from hugging and kissing in public in his city.,1,train,liberty,liberty,0
+You see a mother forcing her daughter to enroll as a pre-med student in college.,1,train,liberty,liberty,0
+You see a pastor banning his congregants from wearing bright colors in the church.,1,train,liberty,liberty,0
+You see a teacher ordering a student to get a normal haircut before coming to class.,1,train,liberty,liberty,0
+You see a teenager at a cafeteria forcing a younger student to pay for her lunch.,1,train,liberty,liberty,0
