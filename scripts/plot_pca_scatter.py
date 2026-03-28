@@ -1,0 +1,97 @@
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from sklearn.decomposition import PCA
+
+
+def _load_split(activations_path: Path, projections_path: Path) -> tuple[np.ndarray, pd.DataFrame]:
+    activations = np.load(activations_path)
+    frame = pd.read_csv(projections_path)
+    if activations.shape[0] != len(frame):
+        raise ValueError(
+            f"Mismatched rows: {activations_path} has {activations.shape[0]} rows but "
+            f"{projections_path} has {len(frame)}."
+        )
+    return activations, frame
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Plot 2D PCA scatter for train/eval activations.")
+    parser.add_argument("--train-activations", required=True)
+    parser.add_argument("--train-projections", required=True)
+    parser.add_argument("--eval-activations", required=True)
+    parser.add_argument("--eval-projections", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--output-csv", required=True)
+    args = parser.parse_args()
+
+    train_acts, train_df = _load_split(Path(args.train_activations), Path(args.train_projections))
+    eval_acts, eval_df = _load_split(Path(args.eval_activations), Path(args.eval_projections))
+
+    combined = np.concatenate([train_acts, eval_acts], axis=0)
+    pca = PCA(n_components=2, random_state=0)
+    combined_xy = pca.fit_transform(combined)
+    train_xy = combined_xy[: len(train_df)]
+    eval_xy = combined_xy[len(train_df) :]
+
+    train_plot_df = train_df.copy()
+    train_plot_df["pc1"] = train_xy[:, 0]
+    train_plot_df["pc2"] = train_xy[:, 1]
+    train_plot_df["dataset_split"] = "train"
+    eval_plot_df = eval_df.copy()
+    eval_plot_df["pc1"] = eval_xy[:, 0]
+    eval_plot_df["pc2"] = eval_xy[:, 1]
+    eval_plot_df["dataset_split"] = "eval"
+
+    plot_df = pd.concat([train_plot_df, eval_plot_df], ignore_index=True)
+    plot_df["class_name"] = plot_df["label"].map({0: "acceptable", 1: "immoral"}).fillna("unknown")
+
+    import matplotlib.pyplot as plt
+
+    colors = {"acceptable": "#1f77b4", "immoral": "#d62728"}
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharex=True, sharey=True)
+    for axis, split_name, split_df in [
+        (axes[0], "Train", train_plot_df),
+        (axes[1], "Eval", eval_plot_df),
+    ]:
+        split_df = split_df.copy()
+        split_df["class_name"] = split_df["label"].map({0: "acceptable", 1: "immoral"}).fillna("unknown")
+        for class_name in ["acceptable", "immoral"]:
+            class_df = split_df[split_df["class_name"] == class_name]
+            axis.scatter(
+                class_df["pc1"],
+                class_df["pc2"],
+                s=10,
+                alpha=0.35,
+                c=colors[class_name],
+                label=class_name,
+                edgecolors="none",
+            )
+        axis.set_title(split_name)
+        axis.set_xlabel("PC1")
+        axis.set_ylabel("PC2")
+        axis.legend(frameon=False)
+
+    explained = pca.explained_variance_ratio_
+    fig.suptitle(
+        f"ETHICS Layer-15 Residual Activations in 2D PCA "
+        f"(PC1 {explained[0]:.1%}, PC2 {explained[1]:.1%})"
+    )
+    fig.tight_layout()
+
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=220)
+    plt.close(fig)
+
+    csv_path = Path(args.output_csv)
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    plot_df.to_csv(csv_path, index=False)
+
+
+if __name__ == "__main__":
+    main()
