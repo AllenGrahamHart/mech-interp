@@ -84,6 +84,14 @@ def load_local_csv_split(
         raise ValueError("DatasetConfig.local_path must be set for dataset_id='local_csv'.")
 
     csv_path = Path(config.local_path)
+    if not csv_path.is_absolute() and not csv_path.exists():
+        for candidate in (
+            Path("/root") / csv_path,
+            Path(__file__).resolve().parents[2] / csv_path,
+        ):
+            if candidate.exists():
+                csv_path = candidate
+                break
     with csv_path.open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.DictReader(handle))
 
