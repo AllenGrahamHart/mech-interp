@@ -19,6 +19,30 @@ def _load_split(activations_path: Path, projections_path: Path) -> tuple[np.ndar
     return activations, frame
 
 
+def _add_immoral_arrow(axis, split_df: pd.DataFrame, x_col: str, y_col: str) -> None:
+    immoral_df = split_df[split_df["label"] == 1]
+    if immoral_df.empty:
+        return
+    tip_x = float(immoral_df[x_col].mean())
+    tip_y = float(immoral_df[y_col].mean())
+    axis.annotate(
+        "",
+        xy=(tip_x, tip_y),
+        xytext=(0.0, 0.0),
+        arrowprops={"arrowstyle": "->", "linewidth": 2.0, "color": "black"},
+        zorder=5,
+    )
+    axis.scatter([tip_x], [tip_y], c="black", s=30, marker="x", linewidths=1.5, zorder=6)
+    axis.annotate(
+        "immoral centroid",
+        xy=(tip_x, tip_y),
+        xytext=(6, 6),
+        textcoords="offset points",
+        fontsize=9,
+        color="black",
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Plot 2D PCA scatter for train/eval activations.")
     parser.add_argument("--train-activations", required=True)
@@ -74,6 +98,7 @@ def main() -> None:
         axis.set_title(split_name)
         axis.set_xlabel("PC1")
         axis.set_ylabel("PC2")
+        _add_immoral_arrow(axis, split_df, "pc1", "pc2")
         axis.legend(frameon=False)
 
     explained = pca.explained_variance_ratio_
