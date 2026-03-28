@@ -32,7 +32,6 @@ def _add_immoral_arrow(axis, split_df: pd.DataFrame, x_col: str, y_col: str) -> 
         arrowprops={"arrowstyle": "->", "linewidth": 2.0, "color": "black"},
         zorder=5,
     )
-    axis.scatter([tip_x], [tip_y], c="black", s=30, marker="x", linewidths=1.5, zorder=6)
 
 
 def main() -> None:
