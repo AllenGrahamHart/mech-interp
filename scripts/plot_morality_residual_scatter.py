@@ -74,18 +74,27 @@ def main() -> None:
     plot_df["class_name"] = plot_df["label"].map({0: "acceptable", 1: "immoral"}).fillna("unknown")
 
     import matplotlib.pyplot as plt
-    from matplotlib.lines import Line2D
+    from matplotlib.legend_handler import HandlerPatch
+    from matplotlib.patches import FancyArrowPatch
 
     colors = {"acceptable": "#1f77b4", "immoral": "#d62728"}
-    immoral_direction_handle = Line2D(
-        [0],
-        [0],
-        color="black",
+    immorality_direction_handle = FancyArrowPatch(
+        (0.0, 0.0),
+        (1.0, 0.0),
+        arrowstyle="->",
         linewidth=2.0,
-        marker=">",
-        markersize=7,
-        markevery=[1],
-        label="immoral direction",
+        color="black",
+        label="immorality direction",
+    )
+    arrow_handler = HandlerPatch(
+        patch_func=lambda legend, orig_handle, xdescent, ydescent, width, height, fontsize: FancyArrowPatch(
+            (xdescent, ydescent + 0.5 * height),
+            (xdescent + width, ydescent + 0.5 * height),
+            arrowstyle="->",
+            mutation_scale=max(fontsize * 1.1, 12.0),
+            linewidth=2.0,
+            color="black",
+        )
     )
     fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharex=True, sharey=True)
     for axis, split_name, split_df in [
@@ -106,17 +115,17 @@ def main() -> None:
                 edgecolors="none",
             )
         axis.set_title(split_name)
-        axis.set_xlabel("Projection onto learned morality direction")
-        axis.set_ylabel("Residual PC1 (orthogonal to morality)")
+        axis.set_xlabel("Projection onto learned immorality direction")
+        axis.set_ylabel("Residual PC1 (orthogonal to immorality)")
         _add_immoral_arrow(axis, split_df, "morality_projection", "residual_pc1")
         handles, labels = axis.get_legend_handles_labels()
-        handles.append(immoral_direction_handle)
-        labels.append("immoral direction")
-        axis.legend(handles, labels, frameon=False)
+        handles.append(immorality_direction_handle)
+        labels.append("immorality direction")
+        axis.legend(handles, labels, frameon=False, handler_map={FancyArrowPatch: arrow_handler})
 
     explained = residual_pca.explained_variance_ratio_[0]
     fig.suptitle(
-        f"ETHICS Layer-15 Activations: Morality Axis vs Residual PC1 "
+        f"ETHICS Layer-15 Activations: Immorality Axis vs Residual PC1 "
         f"(Residual PC1 {explained:.1%} variance)"
     )
     fig.tight_layout()
