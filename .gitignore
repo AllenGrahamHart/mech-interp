@@ -7,3 +7,9 @@ __pycache__/
 runs/
 tmp/
 .DS_Store
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+/main.pdf
