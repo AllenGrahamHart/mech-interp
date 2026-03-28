@@ -94,7 +94,7 @@ def main() -> None:
         arrowstyle="->",
         linewidth=2.0,
         linestyle="--",
-        color="#2ca02c",
+        color="black",
         label=args.comparison_label,
     )
     arrow_handler = HandlerPatch(
@@ -148,7 +148,7 @@ def main() -> None:
                         axis,
                         float(scaled[0]),
                         float(scaled[1]),
-                        color="#2ca02c",
+                        color="black",
                         linestyle="--",
                     )
         handles, labels = axis.get_legend_handles_labels()
