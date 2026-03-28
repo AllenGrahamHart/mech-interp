@@ -23,8 +23,8 @@
   \begin{quote}\footnotesize\color{gray}#1\end{quote}%
 }
 
-\title{Working Title: A Linear Immorality Direction in a Small Language Model}
-\author{Author names here}
+\title{Identifying morality features in language models}
+\author{Allen G hart}
 \date{\today}
 
 \begin{document}
@@ -65,6 +65,24 @@ This section can stay short and tightly scoped. Likely subsections:
     \item Prior ``moral direction'' work and why the present paper is narrower and cleaner.
 \end{itemize}
 Use the literature note already in \texttt{notes/morality\_direction\_literature\_note.md}.
+}
+
+\paragraph{Citation cheat sheet.}
+\draftnote{
+These are placeholder citation notes so you can see the available references and decide where each belongs while writing.
+\begin{description}[leftmargin=8em,style=nextline]
+    \item[\cite{zou2023representation}] Representation engineering establishes the general methodology of extracting high-level linear directions from hidden states and using them for analysis and intervention.
+    \item[\cite{tigges2024language}] Sentiment is represented approximately linearly in activation space, with causal intervention validating the direction.
+    \item[\cite{hendrycks2021aligning}] ETHICS introduces a large benchmark of shared human value judgments, including the commonsense morality subset used here.
+    \item[\cite{schramowski2022large}] An early ``moral direction'' paper showing that pre-trained language models contain a moral or normative direction in embedding space.
+    \item[\cite{haemmerl2023speaking}] Multilingual language models show language-dependent moral bias, which is relevant for any future cross-lingual extension.
+    \item[\cite{zhou2024alignment}] Safety alignment and jailbreak behavior can be studied through intermediate hidden states, providing adjacent precedent for hidden-state analysis of ethical behavior.
+    \item[\cite{liu2024intrinsic}] Self-correction can improve moral behavior at the output level without necessarily removing problematic internal representations.
+    \item[\cite{liu2025moral}] Moral self-correction is not an innate capability, reinforcing the distinction between latent representations and surface behavior.
+    \item[\cite{hu2026straight}] The closest recent prior work explicitly probes internal moral paths and steerable moral vectors in LLMs.
+    \item[\cite{xu2026probing}] Ethical framework representations appear structured and entangled, raising the possibility that morality is multi-dimensional rather than a single axis.
+    \item[\cite{socher2013recursive}] The original sentiment treebank paper introducing the SST dataset family used here as the sentiment control source.
+\end{description}
 }
 
 \subsection{Mechanistic Interpretability and Linear Directions}
@@ -355,8 +373,7 @@ Useful appendix tables:
 Pull examples from \texttt{notes/error\_modes.md} and \texttt{notes/latent\_expressed\_mismatch.md}.
 }
 
-% Bibliography can be added later.
-% \bibliographystyle{plainnat}
-% \bibliography{references}
+\bibliographystyle{plainnat}
+\bibliography{references}
 
 \end{document}

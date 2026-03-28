@@ -12,4 +12,6 @@ tmp/
 *.fls
 *.log
 *.out
+*.bbl
+*.blg
 /main.pdf
