@@ -1,0 +1,362 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black
+}
+
+\newcommand{\draftnote}[1]{%
+  \begin{quote}\footnotesize\color{gray}#1\end{quote}%
+}
+
+\title{Working Title: A Linear Immorality Direction in a Small Language Model}
+\author{Author names here}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% Intentionally no abstract yet.
+
+\section{Introduction}
+\draftnote{
+Possible framing:
+\begin{itemize}[leftmargin=1.5em]
+    \item Mechanistic interpretability aims to identify human-understandable variables inside language models.
+    \item Prior work has found linear directions for sentiment and other properties, but morality-like representations are less settled, especially in small open models.
+    \item The core question here is not whether Qwen behaves morally in some philosophical sense, but whether a simple, stable, causally relevant linear direction separates ETHICS scenarios labeled acceptable vs unacceptable/wrong.
+    \item The paper's main claim can be modest: in Qwen2.5-0.5B-Instruct, a layer-15 residual direction fit from ETHICS short commonsense scenarios is stable, predictive, causally relevant, and only partly explained by sentiment.
+\end{itemize}
+}
+
+\paragraph{Draft contribution list.}
+\draftnote{
+Something like:
+\begin{itemize}[leftmargin=1.5em]
+    \item We identify a simple layerwise mean-difference direction in raw residual activations that separates ETHICS commonsense scenarios.
+    \item We show that this direction is strongest around layer 15 and stable under both increasing sample size and bootstrap resampling.
+    \item We show causal relevance by ablating the direction and measuring a substantial AUROC drop on moral judgment prompts.
+    \item We compare this direction to a negative-sentiment direction learned from SST-2 and show moderate alignment but clear angular separation.
+    \item We show that a sentiment-controlled residual morality direction still has causal force, and that random-direction ablations do not produce comparable effects.
+\end{itemize}
+}
+
+\section{Related Work}
+\draftnote{
+This section can stay short and tightly scoped. Likely subsections:
+\begin{itemize}[leftmargin=1.5em]
+    \item Mechanistic interpretability and linear directions.
+    \item Sentiment directions and representation engineering.
+    \item Morality / ethics benchmarks in language models.
+    \item Prior ``moral direction'' work and why the present paper is narrower and cleaner.
+\end{itemize}
+Use the literature note already in \texttt{notes/morality\_direction\_literature\_note.md}.
+}
+
+\subsection{Mechanistic Interpretability and Linear Directions}
+\draftnote{
+Mention work on sparse autoencoders, representation engineering, sentiment directions, and the broader idea that useful internal variables may be approximately linear in hidden-state space.
+}
+
+\subsection{Moral and Ethical Evaluation in Language Models}
+\draftnote{
+Explain that ETHICS and related datasets are mostly behavioral benchmarks. The novelty here is not a new moral dataset, but using ETHICS as a source of high-consensus scenarios for hidden-state analysis.
+}
+
+\subsection{Closest Prior Work}
+\draftnote{
+Be explicit and honest:
+\begin{itemize}[leftmargin=1.5em]
+    \item broad claim ``models have internal moral representations'' is not new;
+    \item the contribution here is a residual-stream, small-open-model, layerwise, causal, sentiment-controlled study using ETHICS commonsense short scenarios.
+\end{itemize}
+}
+
+\section{Experimental Setup}
+\subsection{Model}
+\draftnote{
+Current model:
+\begin{itemize}[leftmargin=1.5em]
+    \item \texttt{Qwen/Qwen2.5-0.5B-Instruct}
+    \item 24 layers
+    \item layer 15 selected by held-out ETHICS performance from a layer sweep
+\end{itemize}
+You can motivate the model as a small, cheap, open model suitable for rapid mechanistic experiments, while acknowledging its language/comprehension limits.
+}
+
+\subsection{Moral Dataset}
+\draftnote{
+ETHICS commonsense short scenarios.
+\begin{itemize}[leftmargin=1.5em]
+    \item Label 1: unacceptable / wrong / immoral in the dataset framing.
+    \item Label 0: acceptable / not wrong.
+    \item Training counts used in the main run: 2789 immoral, 3872 acceptable.
+    \item Held-out eval: 983 immoral, 1126 acceptable.
+\end{itemize}
+Be careful with terminology. In prose, you can note that the dataset is about consensus moral acceptability judgments rather than deep moral philosophy.
+}
+
+\subsection{Sentiment Control Dataset}
+\draftnote{
+SST-2, with the sign flipped so the learned control direction points toward negative sentiment.
+Matched-size train subset:
+\begin{itemize}[leftmargin=1.5em]
+    \item 2789 negative
+    \item 2789 positive
+\end{itemize}
+This gives a fairer comparison than letting sentiment use a much larger dataset.
+}
+
+\subsection{Activation Readout}
+\draftnote{
+Use the final token of a fixed prompt template, e.g.
+\begin{itemize}[leftmargin=1.5em]
+    \item ETHICS representation prompt: \texttt{Scenario: \{text\}\\nMoral evaluation:}
+    \item sentiment representation prompt: \texttt{Text: \{text\}\\nSentiment:}
+\end{itemize}
+The rationale is that the final prompt token is a natural readout position where the preceding scenario has been integrated.
+}
+
+\section{Methods}
+\subsection{Direction Estimation}
+\draftnote{
+The simplest possible estimator:
+\[
+d = \mu_{\text{immoral}} - \mu_{\text{acceptable}}
+\]
+with $d$ normalized to unit length.
+Stress the simplicity: no SAE, no nonlinear probe, no multi-token aggregation beyond the final pooled state.
+}
+
+\subsection{Layerwise Sweep}
+\draftnote{
+Describe the layer sweep over raw residual activations. The main result:
+\begin{itemize}[leftmargin=1.5em]
+    \item best ETHICS eval AUROC around layer 15
+    \item nearby mid/late layers also strong
+\end{itemize}
+Possible figure: layerwise AUROC plot.
+}
+
+\subsection{Held-Out Evaluation}
+\draftnote{
+The basic question is whether a direction fit on the train split separates acceptable vs immoral scenarios on held-out ETHICS examples.
+Likely metrics:
+\begin{itemize}[leftmargin=1.5em]
+    \item AUROC as the primary metric
+    \item accuracy as secondary, with a note that it is threshold-sensitive
+\end{itemize}
+}
+
+\subsection{Causal Intervention}
+\draftnote{
+Define the intervention clearly.
+If $u$ is the learned unit direction and $h$ the hidden state at the prompt boundary token, the removal intervention is:
+\[
+h' = h - (h \cdot u)u
+\]
+The judgment prompt scores \texttt{acceptable} vs \texttt{unacceptable}. Explain why AUROC is the right primary outcome: it measures separation, not threshold calibration.
+}
+
+\subsection{Sentiment Control}
+\draftnote{
+Three comparisons belong here:
+\begin{itemize}[leftmargin=1.5em]
+    \item full immorality direction
+    \item pure negative-sentiment direction
+    \item immorality residual after orthogonalizing against sentiment
+\end{itemize}
+Write down the orthogonalization:
+\[
+u_{\perp} = \frac{u - (u \cdot s)s}{\|u - (u \cdot s)s\|}
+\]
+where $u$ is immorality and $s$ is the sentiment direction.
+}
+
+\subsection{Random-Direction Null}
+\draftnote{
+Important control: matched-norm random-direction ablations at the same layer and token position.
+This addresses the objection that ``any disturbance'' might hurt performance.
+}
+
+\subsection{Bootstrap Direction Uncertainty}
+\draftnote{
+This section can be short but useful. Explain the stratified bootstrap over training activations:
+\begin{itemize}[leftmargin=1.5em]
+    \item resample each class with replacement at original class size
+    \item refit the mean-difference direction
+    \item compare the bootstrap direction to the full-data direction via cosine and angle
+\end{itemize}
+This yields interpretable angular stability estimates for both immorality and negative sentiment, plus the uncertainty of their alignment.
+}
+
+\section{Results}
+\subsection{A Stable Linear Immorality Direction Exists}
+\draftnote{
+Core numbers to include:
+\begin{itemize}[leftmargin=1.5em]
+    \item full ETHICS sweep best layer: 15
+    \item eval AUROC around 0.829 for the direction-only classifier
+    \item sample-size stabilization already visible as train size increases
+\end{itemize}
+Good figure candidates:
+\begin{itemize}[leftmargin=1.5em]
+    \item layerwise AUROC
+    \item sample-size stability curve
+\end{itemize}
+}
+
+\subsection{Removing the Direction Degrades Moral Separation}
+\draftnote{
+Use the full held-out causal numbers.
+Main AUROC result:
+\begin{itemize}[leftmargin=1.5em]
+    \item baseline: 0.7758
+    \item remove immorality direction: 0.6357
+\end{itemize}
+State plainly that this is evidence of causal relevance, not merely correlation.
+}
+
+\subsection{Sentiment Explains Part, But Not All, of the Signal}
+\draftnote{
+Key numbers:
+\begin{itemize}[leftmargin=1.5em]
+    \item remove pure sentiment: AUROC 0.6607
+    \item remove sentiment-orthogonalized immorality residual: AUROC 0.7407
+    \item cosine between full-data immorality and negative-sentiment directions: 0.5219
+    \item angle between them: about 58.5 degrees
+\end{itemize}
+The wording here matters. They are substantially aligned relative to random high-dimensional directions, but robustly distinct.
+}
+
+\subsection{Random Directions Do Not Reproduce the Effect}
+\draftnote{
+Main null result:
+\begin{itemize}[leftmargin=1.5em]
+    \item morality removal AUROC drop: about 0.140
+    \item 32 random-direction removals: mean drop near 0, max drop about 0.007
+\end{itemize}
+This is one of the strongest controls in the paper.
+}
+
+\subsection{Bootstrap Stability}
+\draftnote{
+Key numbers:
+\begin{itemize}[leftmargin=1.5em]
+    \item immorality direction stays within roughly 6 degrees of the full-data estimate under bootstrap resampling
+    \item negative-sentiment direction also within roughly 6 degrees
+    \item the alignment between them is itself stable
+\end{itemize}
+Use the note in \texttt{notes/bootstrap\_uncertainty.md}.
+}
+
+\subsection{Visualization and Error Analysis}
+\draftnote{
+Possible figure set:
+\begin{itemize}[leftmargin=1.5em]
+    \item immorality vs residual PC1 scatter
+    \item same plot with negative-sentiment comparison arrow
+\end{itemize}
+Possible analysis paragraph:
+\begin{itemize}[leftmargin=1.5em]
+    \item highest-projection immoral examples are extreme violence / abuse / fraud
+    \item high-projection acceptable examples often contain violent or taboo lexical content
+    \item low-projection immoral examples are often milder, oddly phrased, or linguistically noisy
+\end{itemize}
+This suggests the direction captures real moral signal, but is strongly shaped by vivid harm-related language.
+}
+
+\subsection{Latent-Output Mismatch}
+\draftnote{
+Include the result that the latent immorality projection aligns with ETHICS labels slightly better than Qwen's explicit one-word judgment.
+This is a nice payoff because it suggests that the latent direction can be cleaner than the model's expressed answer in a weak model.
+}
+
+\section{Discussion}
+\subsection{What Does the Direction Capture?}
+\draftnote{
+Good discussion point: the direction is neither a full moral theory nor just sentiment.
+It seems to combine:
+\begin{itemize}[leftmargin=1.5em]
+    \item harm / violence
+    \item taboo / crime semantics
+    \item negative affect
+    \item some additional moral signal beyond pure sentiment
+\end{itemize}
+}
+
+\subsection{Limitations}
+\draftnote{
+Likely limitations:
+\begin{itemize}[leftmargin=1.5em]
+    \item small model with clear comprehension limitations
+    \item one dataset and one prompt format
+    \item linear direction is only an approximation
+    \item ETHICS captures consensus labels, not universal morality
+    \item residual-stream analysis alone does not identify a full circuit
+\end{itemize}
+}
+
+\subsection{Future Work}
+\draftnote{
+Natural next steps:
+\begin{itemize}[leftmargin=1.5em]
+    \item repeat on Gemma
+    \item extend to controversial items and latent/output comparisons
+    \item connect the direction to SAE features or circuits
+    \item compare pretrained vs instruct-tuned models
+\end{itemize}
+}
+
+\section{Conclusion}
+\draftnote{
+Keep the conclusion modest and crisp.
+Something like:
+\begin{itemize}[leftmargin=1.5em]
+    \item there is a simple, stable, causally relevant linear direction in Qwen 0.5B that tracks ETHICS moral wrongness / unacceptability judgments
+    \item this direction is related to but not reducible to negative sentiment
+    \item small models already contain morally relevant latent variables that can be studied mechanistically
+\end{itemize}
+}
+
+\appendix
+
+\section{Prompt Templates}
+\draftnote{
+Put all representation and judgment templates here.
+}
+
+\section{Additional Tables}
+\draftnote{
+Useful appendix tables:
+\begin{itemize}[leftmargin=1.5em]
+    \item layerwise metrics
+    \item causal AUROC comparison table
+    \item bootstrap summary table
+\end{itemize}
+}
+
+\section{Example Error Cases}
+\draftnote{
+Pull examples from \texttt{notes/error\_modes.md} and \texttt{notes/latent\_expressed\_mismatch.md}.
+}
+
+% Bibliography can be added later.
+% \bibliographystyle{plainnat}
+% \bibliography{references}
+
+\end{document}
