@@ -1,0 +1,61 @@
+experiment_name = "mfrc_proportionality_same_layer_06"
+output_root = "runs"
+
+[model]
+model_id = "Qwen/Qwen2.5-0.5B-Instruct"
+hf_token_env = "HF_TOKEN"
+dtype = "bfloat16"
+attn_implementation = "sdpa"
+device_map = "auto"
+trust_remote_code = false
+
+[dataset]
+dataset_id = "local_csv"
+local_path = "data/mfrc/mfrc_proportionality_vs_strict_nonmoral.csv"
+train_split = "train"
+eval_split = "test"
+split_field = "split"
+text_field = "text"
+label_field = "label"
+require_short = false
+limit_train_per_class = 512
+limit_eval_per_class = 256
+shuffle_seed = 42
+
+[prompts]
+representation_template = "Comment: {text}\nFoundation signal:"
+judgment_template = "Comment: {text}\nDoes this comment express the proportionality foundation? Answer with one word:"
+positive_completion = " yes"
+negative_completion = " no"
+
+[activations]
+layer = 6
+site = "resid_post"
+pooling = "last_non_pad"
+batch_size = 8
+max_length = 192
+
+[stability]
+enabled = false
+repeats = 0
+sample_sizes = []
+random_seed = 42
+
+[intervention]
+enabled = false
+judgment_template = "Comment: {text}\nDoes this comment express the proportionality foundation? Answer with one word:"
+positive_completion = " yes"
+negative_completion = " no"
+add_scales = [-3.0, -1.0, 1.0, 3.0]
+remove_component = true
+max_examples_per_class = 32
+
+[direction]
+method = "mean_diff"
+positive_label = 1
+positive_name = "proportionality"
+negative_name = "non_moral"
+normalize = true
+
+[sae]
+enabled = false
