@@ -302,11 +302,46 @@ Possible analysis paragraph:
 This suggests the direction captures real moral signal, but is strongly shaped by vivid harm-related language.
 }
 
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.9\linewidth]{../tmp/modal_results/morality_vs_residual_pc1_layer15_with_sentiment.png}
+    \caption{Layer-15 ETHICS activations projected onto the learned immorality direction and the leading residual principal component orthogonal to it. Blue and red points denote acceptable and immoral ETHICS scenarios, respectively. The solid arrow shows the learned immorality direction, while the dashed arrow shows the negative-sentiment direction from SST-2 projected into the same plane.}
+    \label{fig:ethics-immorality-scatter}
+\end{figure}
+
 \subsection{Latent-Output Mismatch}
 \draftnote{
 Include the result that the latent immorality projection aligns with ETHICS labels slightly better than Qwen's explicit one-word judgment.
 This is a nice payoff because it suggests that the latent direction can be cleaner than the model's expressed answer in a weak model.
 }
+
+\subsection{Foundation Directions Are Layered and Overlapping}
+\draftnote{
+This subsection can present the MFRC extension using the revised taxonomy rather than Haidt's original six:
+\begin{itemize}[leftmargin=1.5em]
+    \item Care peaks early at layer 4.
+    \item Loyalty and proportionality peak at layer 6.
+    \item Authority peaks later at layer 19.
+    \item Equality and purity peak later still at layer 22.
+\end{itemize}
+The core story is not ``six orthogonal moral axes.'' It is that foundation-relevant directions are recoverable, peak at different depths, and remain partially overlapping when compared within a shared focal layer.
+}
+
+\begin{table}[t]
+    \centering
+    \footnotesize
+    \resizebox{\linewidth}{!}{\input{../tmp/modal_results/mfrc_same_layer_tables/angle_table.tex}}
+    \caption{Angles between MFRC foundation directions evaluated in each focal foundation's best-decoding layer. Each row uses the focal foundation's best layer, and each cell reports the angle to another foundation direction fitted in that same layer, with bootstrap 95\% confidence intervals. Smaller angles indicate stronger alignment.}
+    \label{tab:mfrc-foundation-angles}
+\end{table}
+
+\begin{table}[t]
+    \centering
+    \small
+    \resizebox{0.9\linewidth}{!}{\input{../tmp/modal_results/mfrc_same_layer_tables/auroc_table.tex}}
+    \caption{Held-out AUROC for each MFRC foundation direction evaluated in the same focal best-decoding layers as Table~\ref{tab:mfrc-foundation-angles}. This provides the decoding context for the angular comparisons: some foundations remain strongly decodable even in layers where another foundation is maximal.}
+    \label{tab:mfrc-foundation-auroc}
+\end{table}
 
 \section{Discussion}
 \subsection{What Does the Direction Capture?}
